@@ -1,0 +1,22 @@
+{
+  "name": "killer-sudoku",
+  "version": "0.1.0",
+  "description": "Killer Sudoku + 大小约束 混合数独游戏",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "gen-puzzles": "tsx scripts/gen-puzzles.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "p-limit": "^4.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0",
+    "vite": "^5.0.0",
+    "vitest": "^1.2.0"
+  }
+}

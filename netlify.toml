@@ -1,0 +1,10 @@
+# Netlify 自动构建部署配置
+#   连接 GitHub 仓库后，push 即自动执行 npm run build 并发布 dist
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# 固定 Node 版本，避免 Netlify 默认版本与依赖不兼容
+[build.environment]
+  NODE_VERSION = "20"
+

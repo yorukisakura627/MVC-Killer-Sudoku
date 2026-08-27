@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#1f2937" />
+    <title>杀手数独 · Killer Sudoku</title>
+    <style>
+      /* 全局基础样式：深色背景 + 居中布局 */
+      html, body {
+        margin: 0;
+        padding: 0;
+        background: #1f2937;
+        color: #f3f4f6;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+        overscroll-behavior: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #app {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        min-height: 100vh;
+        padding: 12px;
+        box-sizing: border-box;
+        gap: 12px;
+      }
+      /* 游戏区：表格在上、按键区在正下方（等宽于表格） */
+      .game-area {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+      }
+      /* 按键区：控制栏 | 数字键盘，宽度由 JS 设为表格宽度 */
+      .controls-row {
+        display: flex;
+        gap: 12px;
+        justify-content: space-between;
+        align-items: stretch;
+        box-sizing: border-box;
+      }
+      /* Canvas 容器：相对定位，供暂停遮罩绝对覆盖 */
+      .canvas-wrap {
+        position: relative;
+        display: flex;
+        justify-content: center;
+      }
+      canvas {
+        display: block;
+        touch-action: none;
+        background: #fefefe;
+        border-radius: 6px;
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+      }
+
+      /* HUD 顶部控制栏 */
+      .hud {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        max-width: 560px;
+        font-size: 14px;
+      }
+      .hud-group {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+        padding: 4px 8px;
+        background: #374151;
+        border-radius: 6px;
+      }
+      .hud button {
+        background: #4b5563;
+        color: #f3f4f6;
+        border: none;
+        border-radius: 4px;
+        padding: 6px 10px;
+        font-size: 13px;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+      .hud button:hover:not(:disabled) { background: #6b7280; }
+      .hud button:disabled { opacity: 0.4; cursor: not-allowed; }
+      .hud button.active { background: #3b82f6; }
+      .hud button.danger { background: #dc2626; }
+      .hud .difficulty-group button { background: #1f2937; }
+      .hud .difficulty-group button.active { background: #f59e0b; color: #1f2937; font-weight: 600; }
+      .hud .time-display {
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+        min-width: 60px;
+        text-align: center;
+      }
+      .hud .progress-display {
+        font-size: 12px;
+        opacity: 0.8;
+      }
+      .hud-reason {
+        width: 100%;
+        text-align: center;
+        font-size: 12px;
+        color: #fbbf24;
+        min-height: 18px;
+        padding: 4px;
+      }
+
+      /* 左侧控制栏：计时(上) / 上一题·随机题·下一题(中横排) / 难度(下横排) */
+      .side-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        flex: 1;
+        min-width: 0;
+      }
+      .side-time-row {
+        display: flex;
+        align-items: stretch;
+        gap: 4px;
+      }
+      .side-time {
+        flex: 1;
+        background: #374151;
+        color: #f3f4f6;
+        border-radius: 6px;
+        padding: 8px;
+        text-align: center;
+        font-size: 18px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
+      .side-no {
+        background: #1f2937;
+        color: #9ca3af;
+        border-radius: 6px;
+        padding: 8px 6px;
+        font-size: 13px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        display: flex;
+        align-items: center;
+      }
+      /* 帮助按钮：方形，不随 flex:1 拉伸 */
+      .side-panel .help-btn {
+        flex: 0 0 38px !important;
+        padding: 0 !important;
+        font-size: 16px;
+        font-weight: 700;
+      }
+      /* 帮助弹窗 */
+      .help-content { max-width: 480px; max-height: 80vh; overflow-y: auto; text-align: left; }
+      .help-content h3 { margin: 12px 0 4px; color: #fbbf24; font-size: 15px; }
+      .help-content p, .help-content li { font-size: 13px; line-height: 1.6; color: #d1d5db; }
+      .help-content ul { margin: 4px 0; padding-left: 20px; }
+      .help-copy { font-size: 12px; color: #6b7280; }
+      /* 题目选择弹窗：每行 5 个按钮 */
+      .picker-content { max-width: 420px; }
+      .picker-diff { margin-bottom: 12px; }
+      .picker-diff-label { font-size: 14px; font-weight: 600; color: #f3f4f6; margin-bottom: 6px; }
+      .picker-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+      .picker-btn { background: #374151; color: #f3f4f6; border: none; border-radius: 4px; padding: 8px 0; font-size: 13px; font-variant-numeric: tabular-nums; cursor: pointer; }
+      .picker-btn:hover { background: #4b5563; }
+      /* 导航与难度：横排3按钮等宽，各占一半垂直空间 */
+      .side-nav, .side-diff {
+        display: flex;
+        flex-direction: row;
+        gap: 4px;
+        flex: 1;
+      }
+      .side-panel button {
+        background: #374151;
+        color: #f3f4f6;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: background 0.15s;
+        touch-action: manipulation;
+        flex: 1;
+        padding: 0;
+      }
+      .side-panel button:hover:not(:disabled) { background: #4b5563; }
+      .side-panel button:disabled { opacity: 0.4; cursor: not-allowed; }
+      .side-panel button.active { background: #3b82f6; }
+
+      /* 数字键盘 4×4：擦除/撤销/重做/候选 + 1-9 + 提示/检查/暂停 */
+      .numpad {
+        display: grid;
+        grid-template-columns: repeat(4, 56px);
+        grid-auto-rows: 56px;
+        gap: 4px;
+      }
+      .numpad button {
+        background: #374151;
+        color: #f3f4f6;
+        border: none;
+        border-radius: 6px;
+        font-size: 16px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 0.15s;
+        padding: 0;
+        touch-action: manipulation;
+      }
+      .numpad button:hover:not(:disabled) { background: #4b5563; }
+      .numpad button:active:not(:disabled) { background: #1f2937; }
+      .numpad button:disabled { opacity: 0.4; cursor: not-allowed; }
+      .numpad button.active { background: #3b82f6; }
+      .numpad button.danger { color: #fca5a5; }
+
+      /* 加载与提示遮罩 */
+      .overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.7);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+      }
+      .overlay-content {
+        background: #1f2937;
+        border: 1px solid #374151;
+        border-radius: 8px;
+        padding: 24px 32px;
+        text-align: center;
+        max-width: 360px;
+      }
+      .overlay h2 { margin: 0 0 12px; color: #f3f4f6; }
+      .overlay p { margin: 8px 0; color: #d1d5db; }
+      .overlay .big-time {
+        font-size: 32px;
+        font-weight: 700;
+        color: #fbbf24;
+        margin: 12px 0;
+        font-variant-numeric: tabular-nums;
+      }
+      .overlay button {
+        background: #3b82f6;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        padding: 8px 16px;
+        margin: 4px;
+        font-size: 14px;
+        cursor: pointer;
+      }
+      .overlay button.secondary { background: #6b7280; }
+      /* 暂停遮罩：覆盖数独表格本体，用表格底色，不覆盖整页 */
+      .pause-overlay {
+        position: absolute;
+        inset: 0;
+        background: #fefefe;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+        border-radius: 6px;
+      }
+      .pause-overlay[hidden] { display: none; }
+      .pause-content { text-align: center; color: #1f2937; }
+      .pause-icon { font-size: 56px; line-height: 1; margin-bottom: 12px; }
+      .pause-content h2 { margin: 0 0 8px; }
+      .pause-content p { margin: 0; color: #6b7280; font-size: 13px; }
+      .spinner {
+        width: 32px;
+        height: 32px;
+        border: 3px solid #374151;
+        border-top-color: #3b82f6;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+        margin: 0 auto 12px;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
