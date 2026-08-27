@@ -1,0 +1,181 @@
+# MY_VIBE_CODING · 开发对话记录
+
+本文件记录杀手数独项目从需求到上线的完整 vibe coding 过程，包括用户要求、我的分析、工作内容、细节确认与多轮改进优化。
+
+---
+
+## 阶段 1：需求与设计
+
+### 用户初始需求
+- 做一个杀手数独游戏，同一局可同时包含数字约束（Killer 笼和值）与大小约束（相邻格/笼间大小关系）
+- 分简单/普通/困难三档，难度越高可用信息越少，但每步填写可由逻辑推导，不能纯猜
+- 每局必须有唯一解
+- 先给出清晰框架：步骤、技术栈、需准备的资源及准备方式
+
+### 细节确认（用户逐条回复）
+| 问题 | 用户答复 |
+|------|----------|
+| 大小约束语义 | 相邻两格 >/</，且相邻两笼和值比，两种图形表示要有区别 |
+| 困难是否允许 0 给定 | 最少 5 个给定数 |
+| 笼是否跨 3×3 宫边界 | 允许 |
+| 目标平台 | Web 网页 |
+| 笼间大小语义 | 笼A数字之和 vs 笼B数字之和 |
+| 格间与笼间约束共存 | 可同时出现 |
+| 冗余处理（笼A/B和值已知时 A>B 恒成立） | 有大小约束的笼无需给和值（隐藏和值笼） |
+| 困难题生成耗时与命中率 | 离线生成题库，每难度 10 题，前端只抽取，加进度提示 |
+
+### 我的设计
+- **双求解器**：暴力回溯验证唯一性 + 逻辑求解器验证可推导（输出推理步骤）
+- **约束传播引擎**：统一处理行列宫不重复、笼和值、格间大小、笼间大小，循环至不动点
+- **隐藏和值笼**：参与笼间约束的笼不显示和值，靠 45 法则或邻接笼推理
+- **难度评分**：`maxTechniqueLevel×100 + stepCount×2 + cageCount×3 + ineqCount×2`
+- **Canvas 分层渲染**：网格→高亮→笼边→笼标签→大小符号→候选→数字
+- **命令模式历史栈**：填值/候选标记封装为 Command，支持撤销/重做
+- **离线题库**：Node 脚本预生成，前端按难度抽取，运行时生成作 fallback
+
+---
+
+## 阶段 2：环境准备
+
+### 用户要求
+- 让 AI 能自行运行验证，需要什么工具、怎么补充
+
+### 工作内容
+- 明确工具链：Node.js + npm、PowerShell 执行策略、git
+- 用户操作：安装 Node.js LTS（v24.20.0），以管理员运行 `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`
+- 运行诊断命令验证环境：Node/npm 可用、依赖已装、`tsc --noEmit` 通过
+
+---
+
+## 阶段 3：编译修复
+
+### 问题
+TypeScript 报多处未使用导入错误。
+
+### 修复
+- [inequality-sower.ts](src/generator/inequality-sower.ts)：删除未用的 `cagesAdjacent` 导入
+- [keyboard.ts](src/input/keyboard.ts)：删除未用的 `InputAction`
+- 6 个渲染图层：删除未用的 `View` 导入
+- `tsc --noEmit` 通过，0 错误
+
+---
+
+## 阶段 4：测试
+
+### 用户要求
+运行测试套件验证求解器、逻辑推理、生成器。
+
+### 发现的 Bug
+全给定（81 格）合法谜题被 `hasUniqueSolution` 误判无解——根因是 `layCages` 贪心扩展笼时未检查笼内数字是否重复，导致部分笼含相同数字，`CageConstraint` 传播把重复值格子候选互相删空。测试用 `if (!p) return` 跳过断言掩盖了问题。
+
+### 修复
+[cage-builder.ts](src/generator/cage-builder.ts)：`layCages` 扩展时跟踪 `usedDigits`，只把不引入重复的相邻格加入；`mergeSingletons` 合并单格笼时也检查不重复。
+
+### 结果
+13 个测试全部通过，生成器三难度均能产出有效题（easy 35给定/normal 18/hard 5）。
+
+---
+
+## 阶段 5：题库生成
+
+### 用户要求
+生成离线题库（easy 10 题，后续 normal/hard）。
+
+### 发现的脚本 Bug
+[gen-puzzles.ts](scripts/gen-puzzles.ts) 用 `a.slice(7)`/`a.slice(3)` 硬编码索引解析 CLI 参数，`--n=` 前缀长度与切片不符，导致 `Number('=10')=NaN`，题库写成空文件。改用 `a.indexOf('=')` 动态定位。
+
+### 结果
+| 难度 | 成功 | 耗时 | 给定数 | 评分 |
+|------|------|------|--------|------|
+| easy | 10/10 | 0.1s | 35 | 67~84 |
+| normal | 10/10 | 0.2s | 18 | 268~435 |
+| hard | 6/10 | 147s | 5~9 | 507~587（4 题超时熔断，属预期） |
+
+---
+
+## 阶段 6：UI 开发与多轮改进
+
+### 第 1 轮（5 项 UI 改动）
+1. 选中格行列宫黄色太浓且遮挡笼边 → 图层顺序调整（高亮移至笼边之下）+ 填充色加 alpha
+2. 暂停时增加遮挡层覆盖整个游戏界面（后改为只覆盖表格）
+3. 已填数字格输入相同数字 → 删除该数字
+4. 大小约束符号放大（三角 size 6 → 随 cellSize 缩放）
+5. 增加数字键盘（鼠标点击），撤销/重做/候选模式移入键盘
+
+### 第 2 轮（4 项）
+1. 多选拖动：pointer 加 down/move/up，矩形框选发 `selectMany`
+2. 有值格输入不同数字 → 原值保留 + 新数字变候选并存（后改为原值降级候选）
+3. 暂停遮罩只覆盖表格本体，浅色背景，空格键切换
+4. 布局重构：数字键盘与功能键移到表格正下方，左右边缘与表格等宽
+
+### 第 3 轮（3 项）
+1. 候选保持模式：有值格输入不同数字时原值降级为候选，与新数字并存；候选删空后才回填确定值（修复"输入第三个数字变成填充"）
+2. 多选去边框，仅蓝色填充底色
+3. 左侧栏布局：计时上、导航中横排（上一题/随机题/下一题）、难度下横排（简单/普通/困难），与右侧 4×4 键盘等高
+
+### 第 4 轮（1 项）
+- 多选从矩形框选改为路径式：只选鼠标实际划过的格子（`dragPath` Set + 直线插值补全）
+
+### 第 5 轮（3 项）
+1. 重做按钮改为"重做本题"：有用户输入时激活，点击清空所有用户输入并重置计时
+2. 提示功能：easy 5/normal 3/hard 1 次，随机给空格填正确答案（可撤销但不恢复次数）
+3. 笼边内缩：与宫线/相邻笼边分离，`inset = max(2, cellSize×6%)`
+
+### 第 6 轮（4 项问题排查）
+1. 困难题库打不开 + 普通只有两题 → 根因：`fetch(..., {cache:'force-cache'})` 缓存了早期空文件；改 `cache:'no-store'` + 时间戳
+2. 笼红虚线太刺眼 → strokeStyle 加 alpha `88`
+3. 隐藏和值笼无需金色"?"标签 → `sum===null` 的笼 `continue` 跳过
+4. （渲染视觉硬刷新确认）
+
+### 第 7 轮（3 项）
+1. 帮助按钮+弹窗：计时右侧方形"？"按钮，弹窗含版权/简介/玩法/功能
+2. 题目全局编号：easy 001-010/normal 011-020/hard 021-026，新增题时按难度区间自动递增（`getGlobalNumber` 累计偏移）
+3. "随机题"改为"题目选择"弹窗：三难度各题，每行 5 个按钮显示序号
+
+---
+
+## 阶段 7：部署上线
+
+### 用户要求
+让其他人在别的电脑上也能玩。选 GitHub 管理源码 + Netlify 连接仓库自动构建部署。
+
+### 工作内容
+- 创建 [netlify.toml](netlify.toml)：`npm run build` + `publish=dist` + `NODE_VERSION=20`
+- 确认 [.gitignore](.gitignore) 合理（排除 node_modules/dist）
+- `npm run build` 验证通过，dist 含题库 JSON
+- 用户安装 Git for Windows 2.55.0
+
+### Git 操作
+- `git init` + `git config --local`（用户名 yorukisakura627 + noreply email）
+- `git add .` + `git commit -m "初始化杀手数独项目"`（62 文件，commit 2126f7a）
+- `git remote add origin` + `git branch -M main`
+- 首次 push 被拒（远程有 LICENSE 初始提交，non-fast-forward）
+- 用户自行强制 push 覆盖远程（丢失 MIT LICENSE）
+
+### Netlify 部署
+- 用户连接 GitHub 仓库，Netlify 自动读 netlify.toml 构建
+- 首次验证：站点被 "Team protection" 私有拦截 → 用户改站点保护为公开
+- 二次验证（新网址 https://killer-sudoku-sakurayoruki.netlify.app/）：全部通过
+  - 站点公开、控制台无错、题库 fetch 200、渲染正常、填数/切难度/提示全 PASS
+
+### LICENSE 补回
+- 本地创建 [LICENSE](LICENSE)（MIT，版权 yorukisakura627 2026）
+- 提交 commit `b7fef7a`，待 push 到远程恢复
+
+---
+
+## 阶段 8：文档
+
+### 用户要求
+- 写 README.md（GitHub 风格，中文）记录工程
+- 写 MY_VIBE_CODING 记录本对话全过程
+- git commit
+
+### 当前状态
+- 线上版可正常游玩：<https://killer-sudoku-sakurayoruki.netlify.app/>
+- 三难度题库齐全（easy 10 / normal 10 / hard 6）
+- 待办：移动端 DPR 适配 + 触摸操作（实现计划第 242 行，未做）
+
+## 待办
+- 推送 LICENSE commit 到远程恢复 MIT 声明
+- 可选：移动端适配（手机/平板触摸 + 响应式布局）
