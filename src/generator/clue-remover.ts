@@ -37,6 +37,9 @@ export function clonePuzzle(p: Puzzle): Puzzle {
     cages: p.cages.map((c) => ({ id: c.id, cells: c.cells.slice(), sum: c.sum })),
     cellIneq: p.cellIneq.map((c) => ({ ...c })),
     cageIneq: p.cageIneq.map((c) => ({ ...c })),
+    // 等值约束随克隆保留：移除给定数的过程中约束集不变
+    cellEq: p.cellEq.map((c) => ({ ...c })),
+    cageEq: p.cageEq.map((c) => ({ ...c })),
     givens: new Map(p.givens),
     rating: p.rating,
     techniqueMax: p.techniqueMax,

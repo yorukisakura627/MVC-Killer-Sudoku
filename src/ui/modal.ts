@@ -70,8 +70,13 @@ export function showErrorOverlay(message: string, onRetry?: () => void): void {
   overlay.querySelector('[data-act="close"]')!.addEventListener('click', () => overlay.remove());
 }
 
+// 四档难度标签（弹窗与题库导航共用）
+export const DIFF_LABELS: Record<Difficulty, string> = {
+  easy: '简单', normal: '普通', hard: '困难', expert: '专家',
+};
+
 function diffLabel(diff: string): string {
-  return diff === 'easy' ? '简单' : diff === 'normal' ? '普通' : '困难';
+  return DIFF_LABELS[diff as Difficulty] ?? diff;
 }
 
 // 暂停遮罩：覆盖数独表格本体（不覆盖整页），用表格底色
@@ -105,7 +110,7 @@ export function showHelpOverlay(): void {
       <h2>杀手数独 · 大小约束</h2>
       <p class="help-copy">© 2026 Killer Sudoku with Inequalities · 版权所有</p>
       <h3>项目简介</h3>
-      <p>一款融合 Killer 笼和值与相邻格/笼大小约束的数独变体。每局保证唯一解且可纯逻辑推导，分简单/普通/困难三档难度，难度越高可用信息越少。</p>
+      <p>一款融合 Killer 笼和值与相邻格/笼大小约束的数独变体。每局保证唯一解且可纯逻辑推导，分简单/普通/困难/专家四档难度，难度越高可用信息越少。</p>
       <h3>玩法</h3>
       <ul>
         <li>在 9×9 格内填入 1~9，使每行、每列、每个 3×3 宫不重复。</li>
@@ -119,7 +124,7 @@ export function showHelpOverlay(): void {
         <li>鼠标点击选格、按住拖动多选批量填数。</li>
         <li>候选模式：在已填数字的格子输入不同数字会转为候选；候选可逐个标记/删除。</li>
         <li>数字键盘：1-9 填数、擦除、撤销、重做（重做本题）、候选模式切换。</li>
-        <li>提示（简单5/普通3/困难1 次）：随机填一个空格的正确答案，可被更改，撤销不恢复次数。</li>
+        <li>提示（简单5/普通4/困难3/专家2 次）：随机填一个空格的正确答案，可被更改，撤销不恢复次数。</li>
         <li>检查：高亮当前冲突的格子。</li>
         <li>暂停：空格键或暂停按钮，遮罩表格防偷看。</li>
         <li>题目选择弹窗：按难度浏览全部题目并跳转。</li>
@@ -136,12 +141,12 @@ export function showHelpOverlay(): void {
 export function showPuzzlePicker(onPick: (diff: Difficulty, idx: number) => void): void {
   const overlay = document.createElement('div');
   overlay.className = 'overlay';
-  const diffs: Difficulty[] = ['easy', 'normal', 'hard'];
-  const labels: Record<Difficulty, string> = { easy: '简单', normal: '普通', hard: '困难' };
+  // 四档难度按顺序展示，全局序号跨难度连续
+  const diffs: Difficulty[] = ['easy', 'normal', 'hard', 'expert'];
   let html = '<div class="overlay-content picker-content"><h2>题目选择</h2>';
   for (const d of diffs) {
     const list = getPuzzleList(d);
-    html += `<div class="picker-diff"><div class="picker-diff-label">${labels[d]}（${list.length} 题）</div><div class="picker-grid">`;
+    html += `<div class="picker-diff"><div class="picker-diff-label">${DIFF_LABELS[d]}（${list.length} 题）</div><div class="picker-grid">`;
     list.forEach((_: Puzzle, i: number) => {
       const no = formatPuzzleNo(getGlobalNumber(d, i));
       html += `<button class="picker-btn" data-diff="${d}" data-idx="${i}">${no}</button>`;

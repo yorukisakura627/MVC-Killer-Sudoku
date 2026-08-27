@@ -1,5 +1,5 @@
 import type { Cage } from '@/types/cage';
-import type { CellInequality, CageInequality } from '@/types/constraint';
+import type { CellInequality, CageInequality, CellEquality, CageEquality } from '@/types/constraint';
 import { ALL_UNITS } from '@/types/grid';
 import type { CandidateGrid } from './candidates';
 import type { Constraint } from './propagator';
@@ -219,15 +219,93 @@ export class CageInequalityConstraint implements Constraint {
   }
 }
 
+// 格间等值约束：两格（非同行/列/宫）必须填相同数字
+//   传播：两格候选集取交集（等值⇒两格只能取共同候选）；一格定值 ⇒ 另一格同值
+export class CellEqualityConstraint implements Constraint {
+  readonly name = 'cell-eq';
+  constructor(private eqs: CellEquality[]) {}
+  prune(g: CandidateGrid): boolean {
+    let changed = false;
+    for (const { a, b } of this.eqs) {
+      const aArr = g.cands[a].toArray();
+      const bArr = g.cands[b].toArray();
+      if (aArr.length === 0 || bArr.length === 0) continue;
+      const bSet = new Set(bArr);
+      // a 候选 ∩ b 候选：a 中不在 b 候选集里的值全部删除
+      for (const v of aArr) {
+        if (!bSet.has(v)) {
+          g.cands[a].remove(v);
+          changed = true;
+        }
+      }
+      // b 侧同理（a 集合在上一轮可能已变化，用原 bArr 重新对比最新的 a）
+      const aSet = new Set(g.cands[a].toArray());
+      for (const v of bArr) {
+        if (!aSet.has(v)) {
+          g.cands[b].remove(v);
+          changed = true;
+        }
+      }
+    }
+    return changed;
+  }
+}
+
+// 笼间等值约束：两笼和值相等（均须为隐藏和值笼）
+//   传播：两笼和值域 [aLo,aHi] 与 [bLo,bHi] 收敛到公共区间
+//   [lo,hi] = [max(aLo,bLo), min(aHi,bHi)]，再用 tightenCageByRange 反向收紧格子候选
+export class CageEqualityConstraint implements Constraint {
+  readonly name = 'cage-eq';
+  private cagesById: Map<number, Cage>;
+  constructor(cages: Cage[], private eqs: CageEquality[]) {
+    this.cagesById = new Map(cages.map((c) => [c.id, c]));
+  }
+  private sumRange(cage: Cage, g: CandidateGrid): [number, number] {
+    let lo = 0;
+    let hi = 0;
+    for (const idx of cage.cells) {
+      const arr = g.cands[idx].toArray();
+      lo += arr[0];
+      hi += arr[arr.length - 1];
+    }
+    return [lo, hi];
+  }
+  prune(g: CandidateGrid): boolean {
+    let changed = false;
+    for (const { a, b } of this.eqs) {
+      const cageA = this.cagesById.get(a);
+      const cageB = this.cagesById.get(b);
+      if (!cageA || !cageB) continue;
+      const [aLo, aHi] = this.sumRange(cageA, g);
+      const [bLo, bHi] = this.sumRange(cageB, g);
+      // 等值 ⇒ 两笼和值域都收敛到公共交集
+      const lo = Math.max(aLo, bLo);
+      const hi = Math.min(aHi, bHi);
+      if (lo > hi) continue; // 已矛盾，交给外层矛盾检测
+      if (lo !== aLo || hi !== aHi) {
+        if (tightenCageByRange(cageA, lo, hi, g)) changed = true;
+      }
+      if (lo !== bLo || hi !== bHi) {
+        if (tightenCageByRange(cageB, lo, hi, g)) changed = true;
+      }
+    }
+    return changed;
+  }
+}
+
 // 从 Puzzle 一次性构造所有需要的 Constraint
 export function buildConstraintsFor(
   cages: Cage[],
   cellIneqs: CellInequality[],
   cageIneqs: CageInequality[],
+  cellEqs: CellEquality[] = [],
+  cageEqs: CageEquality[] = [],
 ): Constraint[] {
   const list: Constraint[] = [new UnitConstraint()];
   for (const c of cages) list.push(new CageConstraint(c));
   if (cellIneqs.length > 0) list.push(new CellInequalityConstraint(cellIneqs));
   if (cageIneqs.length > 0) list.push(new CageInequalityConstraint(cages, cageIneqs));
+  if (cellEqs.length > 0) list.push(new CellEqualityConstraint(cellEqs));
+  if (cageEqs.length > 0) list.push(new CageEqualityConstraint(cages, cageEqs));
   return list;
 }

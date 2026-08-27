@@ -3,13 +3,13 @@ import { cellRect } from '../view';
 
 // 笼标签层：仅显示有和值的笼的和值
 //   隐藏和值笼（sum=null，参与大小约束）不显示任何标签（需求3）
+//   样式改进：去掉底色块，和值直接嵌在笼左上角的边框线上——
+//   先用表格底色画小挖空块"盖住"边框线（覆盖效果），再在上面绘制数字
 export const cageLabels: RenderLayer = {
   name: 'cage-labels',
   draw(ctx, view, theme) {
     const { puzzle } = view;
-    const labelW = 22;
-    const labelH = 16;
-    ctx.font = 'bold 11px sans-serif';
+    ctx.font = 'bold 12px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
@@ -25,13 +25,14 @@ export const cageLabels: RenderLayer = {
         }
       }
       const rect = cellRect(view, minIdx);
-      const lx = rect.x + 2;
-      const ly = rect.y + 2;
-      // 底色 + 和值文字
-      ctx.fillStyle = theme.cageLabelBg;
-      ctx.fillRect(lx, ly, labelW, labelH);
+      // 数字中心贴住格子左上角（略向内偏移，横跨两条边框线的交点）
+      const cx = rect.x + 1;
+      const cy = rect.y + 1;
+      // 挖空块：表格底色小矩形盖住边框线，让数字"嵌"在框上而非压在色块里
+      ctx.fillStyle = theme.bg;
+      ctx.fillRect(cx - 9, cy - 7, 18, 14);
       ctx.fillStyle = theme.cageLabelFg;
-      ctx.fillText(`${cage.sum}`, lx + labelW / 2, ly + labelH / 2 + 0.5);
+      ctx.fillText(`${cage.sum}`, cx, cy + 0.5);
     }
   },
 };

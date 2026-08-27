@@ -12,6 +12,8 @@ export interface Theme {
   cellIneq: string; // 格间大小符号（深蓝）
   cageIneq: string; // 笼间大小符号（橙）
   cageIneqGuide: string; // 笼间符号引导虚线
+  cellEq: string; // 格间等值符号（深蓝，与大小约束同族，靠形状区分）
+  cageEq: string; // 笼间等值符号（橙，与大小约束同族）
   givenNumber: string;
   userInput: string;
   candidate: string;
@@ -35,9 +37,11 @@ export const DEFAULT_THEME: Theme = {
   cellIneq: '#1e3a8a',
   cageIneq: '#f59e0b',
   cageIneqGuide: '#fbbf24',
+  cellEq: '#1e3a8a',
+  cageEq: '#f59e0b',
   givenNumber: '#111827',
   userInput: '#1e40af',
-  candidate: '#9ca3af',
+  candidate: '#6b7280', // 候选数：中灰（调深，提升可读性）
   highlightSelected: '#fef3c7',
   highlightPeer: '#fef9c3',
   highlightSameValue: '#dbeafe',

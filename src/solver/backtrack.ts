@@ -11,7 +11,7 @@ import { buildConstraintsFor } from './constraints';
 //   - 因为已经预先传播，单题通常毫秒级出解
 export function solveBrute(p: Puzzle, cap = 2): number[][] {
   const grid = CandidateGrid.fromPuzzle(p);
-  const propagator = new Propagator(buildConstraintsFor(p.cages, p.cellIneq, p.cageIneq));
+  const propagator = new Propagator(buildConstraintsFor(p.cages, p.cellIneq, p.cageIneq, p.cellEq, p.cageEq));
   if (!propagator.run(grid)) return []; // 初始就矛盾
   const solutions: number[][] = [];
   backtrack(grid, propagator, cap, solutions);
@@ -105,6 +105,14 @@ export function isValidSolution(p: Puzzle, sol: number[]): boolean {
     const sb = cageSum.get(b)!;
     if (rel === '>' && !(sa > sb)) return false;
     if (rel === '<' && !(sa < sb)) return false;
+  }
+  // 格间等值：两格同值
+  for (const { a, b } of p.cellEq ?? []) {
+    if (sol[a] !== sol[b]) return false;
+  }
+  // 笼间等值：两笼和值相等
+  for (const { a, b } of p.cageEq ?? []) {
+    if (cageSum.get(a)! !== cageSum.get(b)!) return false;
   }
   return true;
 }

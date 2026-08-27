@@ -211,11 +211,13 @@ export class GameStore {
   }
 
   // === 提示（需求2）===
-  //   easy5/normal3/hard1 次；用一次随机填一个空格(value==0)的正确答案
+  //   四档难度提示数：easy5 / normal4 / hard3 / expert2
+  //   用一次随机填一个空格(value==0)的正确答案
   //   提示填的值可被用户更改；撤销正常撤销该数字但不恢复提示次数
   get hintLimit(): number {
     return this.puzzle.difficulty === 'easy' ? 5
-      : this.puzzle.difficulty === 'normal' ? 3 : 1;
+      : this.puzzle.difficulty === 'normal' ? 4
+      : this.puzzle.difficulty === 'hard' ? 3 : 2;
   }
   get hintsRemaining(): number {
     return Math.max(0, this.hintLimit - this.hintsUsed);

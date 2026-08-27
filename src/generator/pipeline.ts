@@ -2,7 +2,7 @@ import type { Puzzle } from '@/types/puzzle';
 import type { Difficulty } from '@/types/puzzle';
 import { randomFullGrid, mulberry32 } from './grid-gen';
 import { layCages, markHiddenCages, cloneCages } from './cage-builder';
-import { sowCellIneq, sowCageIneq } from './inequality-sower';
+import { sowCellIneq, sowCageIneq, sowCellEquality, sowCageEquality } from './inequality-sower';
 import { removeCluesToTarget, clonePuzzle } from './clue-remover';
 import { DIFF_PARAMS, computeRating, ratingInBand, levelAllowed } from './difficulty';
 import { hasUniqueSolution } from '@/solver/backtrack';
@@ -13,6 +13,8 @@ export interface GenOptions {
   rng?: () => number;
   maxTries?: number;
   timeoutMs?: number;
+  /** 校准用：跳过评分带检查（默认 false），用于实测各难度的真实指标分布 */
+  skipRatingBand?: boolean;
 }
 
 // 主生成流程
@@ -25,7 +27,7 @@ export interface GenOptions {
 //   7. 检查技巧等级 + 评分区间
 //   失败重试，超时熔断
 export function generatePuzzle(opts: GenOptions): Puzzle | null {
-  const { diff, rng = Math.random, maxTries = 20, timeoutMs = 30000 } = opts;
+  const { diff, rng = Math.random, maxTries = 20, timeoutMs = 30000, skipRatingBand = false } = opts;
   const params = DIFF_PARAMS[diff];
   const start = Date.now();
 
@@ -35,15 +37,30 @@ export function generatePuzzle(opts: GenOptions): Puzzle | null {
     const sol = randomFullGrid(rng);
     const cages = layCages(sol, rng);
 
-    // 标记隐藏笼：至少 cageIneqRange[1]+1 个，保证 cage-ineq 有作用对象
+    // 标记隐藏笼：传入 sol 以启用"可行对优先"策略（需求4 配套），
+    //   优先成对隐藏和值相近的相邻笼，保证 cage-ineq / cage-eq 有作用对象
     const minHidden = params.cageIneqRange[1] > 0 ? params.cageIneqRange[1] + 1 : 0;
-    markHiddenCages(cages, params.cageHiddenRate, minHidden, rng);
+    markHiddenCages(cages, params.cageHiddenRate, minHidden, rng, sol);
+
+    // 冗余约束消除（需求3）：单格笼和值 = 该格的值，等价于一个给定数。
+    //   若该格同时被给定，两个约束完全重复，既浪费信息又让玩家困惑；
+    //   处理：所有单格笼一律置 sum=null（退化为纯区域约束），不再提供免费给定。
+    //   逻辑可解性由后续 solveLogical 验证，若该和值是解题必需则本题自然重试。
+    for (const cage of cages) {
+      if (cage.cells.length === 1) cage.sum = null;
+    }
 
     // 撒大小约束
     const cellCount = randInt(params.cellIneqRange, rng);
     const cageCount = randInt(params.cageIneqRange, rng);
     const cellIneq = sowCellIneq(sol, cellCount, rng);
     const cageIneq = sowCageIneq(cages, sol, cageCount, rng);
+
+    // 撒等值约束（需求5）：格间（非 peer 同值格对）+ 笼间（隐藏笼同和值对）
+    const cellEqCount = randInt(params.cellEqRange, rng);
+    const cageEqCount = randInt(params.cageEqRange, rng);
+    const cellEq = sowCellEquality(sol, cellEqCount, rng);
+    const cageEq = sowCageEquality(cages, sol, cageEqCount, rng);
 
     // 初始谜题：所有 81 格作为给定
     const allGivens = new Map<number, number>();
@@ -56,6 +73,8 @@ export function generatePuzzle(opts: GenOptions): Puzzle | null {
       cages: cloneCages(cages),
       cellIneq: cellIneq.slice(),
       cageIneq: cageIneq.slice(),
+      cellEq: cellEq.slice(),
+      cageEq: cageEq.slice(),
       givens: allGivens,
       rating: 0,
       techniqueMax: '',
@@ -78,10 +97,19 @@ export function generatePuzzle(opts: GenOptions): Puzzle | null {
     // 检查技巧等级是否在该难度允许范围
     if (!levelAllowed(log.maxLevel, diff)) continue;
 
+    // 最低技巧等级门槛（需求1 配套）：低于门槛说明本题对本档太容易，
+    //   如 normal 被纯传播解出（L0）时评分会塌到 easy 区，直接拒绝重试
+    if (log.maxLevel < params.minLevel) continue;
+
     // 评分
-    const ineqCount = p.cellIneq.length + p.cageIneq.length;
-    const rating = computeRating(log, p.cages.length, ineqCount);
-    if (!ratingInBand(rating, diff)) continue;
+    const rating = computeRating(log, p.givens.size, {
+      cageCount: p.cages.length,
+      cellIneqCount: p.cellIneq.length,
+      cageIneqCount: p.cageIneq.length,
+      cellEqCount: p.cellEq.length,
+      cageEqCount: p.cageEq.length,
+    });
+    if (!ratingInBand(rating, diff) && !skipRatingBand) continue;
 
     // 通过所有验证，填充元数据并返回
     const result = clonePuzzle(p);

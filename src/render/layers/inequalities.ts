@@ -1,7 +1,7 @@
 import type { RenderLayer } from './types';
 import type { View } from '../view';
 import { cellRect } from '../view';
-import type { CellInequality, CageInequality } from '@/types/constraint';
+import type { CellInequality, CageInequality, CellEquality, CageEquality } from '@/types/constraint';
 import type { Cage } from '@/types/cage';
 
 // 大小约束层：分别绘制格间（实心深蓝三角贴格子边）与笼间（空心橙三角+虚线引导）
@@ -9,6 +9,9 @@ import type { Cage } from '@/types/cage';
 //   为避免笼间箭头（金色/橙色）与格间箭头（蓝色）位置重合：
 //     1. 笼间选两笼的格对时，优先挑"不与现有格间大小约束共享同一条边"的端点
 //     2. 若所有候选对都冲突（极端，如两单格笼相邻且有 cellIneq），沿引导线法向偏移三角
+//   等值约束（需求5）：样式与大小约束同族（格间=深蓝、笼间=橙），用 "=" 字形区分方向
+//     - 格间等值：跨格连线（虚线低透明度，避免遮挡数字）+ 连线中点画 "="
+//     - 笼间等值：复用笼间端点选择（避开格间箭头冲突），引导虚线 + 中点画 "="
 export const inequalities: RenderLayer = {
   name: 'inequalities',
   draw(ctx, view, theme) {
@@ -22,6 +25,10 @@ export const inequalities: RenderLayer = {
     }
     ctx.setLineDash([]);
 
+    // 等值连线（最先画：低透明度虚线垫底，让 "=" 符号保持醒目）
+    drawCellEqualityGuides(ctx, view, theme, puzzle.cellEq);
+    drawCageEqualityGuides(ctx, view, theme, puzzle.cages, puzzle.cageEq, puzzle.cellIneq);
+
     // 格间大小：实心三角，深蓝
     ctx.fillStyle = theme.cellIneq;
     for (const ii of puzzle.cellIneq) {
@@ -34,6 +41,14 @@ export const inequalities: RenderLayer = {
     ctx.lineWidth = 2;
     for (const ci of puzzle.cageIneq) {
       drawCageIneqTriangle(ctx, view, puzzle.cages, ci, puzzle.cellIneq);
+    }
+
+    // 等值符号 "=" 最后画：确保覆盖连线，视觉焦点在符号上
+    for (const eq of puzzle.cellEq) {
+      drawCellEqualityGlyph(ctx, view, theme, eq);
+    }
+    for (const eq of puzzle.cageEq) {
+      drawCageEqualityGlyph(ctx, view, theme, puzzle.cages, eq, puzzle.cellIneq);
     }
   },
 };
@@ -191,4 +206,140 @@ function drawCageIneqTriangle(
   ctx.lineTo(baseX - px * half, baseY - py * half);
   ctx.closePath();
   ctx.stroke();
+}
+
+// 等值符号 "="：在点 (x,y) 处沿法向画两条平行短线
+//   (ux,uy) 是连线方向单位向量，"=" 的两横垂直于连线
+//   尺寸随格子大小缩放，与三角符号视觉权重一致
+function drawEqGlyph(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  ux: number,
+  uy: number,
+  cellSize: number,
+) {
+  const half = Math.max(5, cellSize * 0.1); // "=" 单横的半长
+  const gap = Math.max(2.5, cellSize * 0.05); // 两横间距的一半
+  // 法向单位向量（垂直于连线）
+  const nx = -uy;
+  const ny = ux;
+  ctx.lineWidth = Math.max(2, Math.floor(cellSize * 0.045));
+  for (const s of [-1, 1]) {
+    const cy = y + ny * s * gap;
+    const cx = x + nx * s * gap;
+    ctx.beginPath();
+    ctx.moveTo(cx - nx * half, cy - ny * half);
+    ctx.lineTo(cx + nx * half, cy + ny * half);
+    ctx.stroke();
+  }
+}
+
+// 格间等值连线：低透明度虚线连接两格中心（跨格连线，等号画在连线中点）
+//   两格非同行/列/宫（约束语义保证），连线可能跨多格，用虚线+低透明度减少对数字的遮挡
+function drawCellEqualityGuides(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  theme: { cellEq: string },
+  eqs: CellEquality[],
+) {
+  if (eqs.length === 0) return;
+  ctx.save();
+  ctx.strokeStyle = theme.cellEq;
+  ctx.globalAlpha = 0.35; // 低透明度：连线只是引导，避免遮挡途中数字
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 3]);
+  for (const eq of eqs) {
+    const a = cellRect(view, eq.a);
+    const b = cellRect(view, eq.b);
+    ctx.beginPath();
+    ctx.moveTo(a.x + a.w / 2, a.y + a.h / 2);
+    ctx.lineTo(b.x + b.w / 2, b.y + b.h / 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// 格间等值符号：在连线中点画 "="（深蓝，与格间大小同族）
+function drawCellEqualityGlyph(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  theme: { cellEq: string },
+  eq: CellEquality,
+) {
+  const a = cellRect(view, eq.a);
+  const b = cellRect(view, eq.b);
+  const ax = a.x + a.w / 2;
+  const ay = a.y + a.h / 2;
+  const bx = b.x + b.w / 2;
+  const by = b.y + b.h / 2;
+  const len = Math.hypot(bx - ax, by - ay) || 1;
+  ctx.save();
+  ctx.strokeStyle = theme.cellEq;
+  drawEqGlyph(ctx, (ax + bx) / 2, (ay + by) / 2, (bx - ax) / len, (by - ay) / len, view.cellSize);
+  ctx.restore();
+}
+
+// 笼间等值连线：复用笼间端点选择逻辑（避开格间箭头冲突），金色引导虚线
+function drawCageEqualityGuides(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  theme: { cageIneqGuide: string },
+  cages: Cage[],
+  eqs: CageEquality[],
+  cellIneqList: CellInequality[],
+) {
+  if (eqs.length === 0) return;
+  ctx.save();
+  ctx.strokeStyle = theme.cageIneqGuide;
+  ctx.globalAlpha = 0.5;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([2, 2]);
+  for (const eq of eqs) {
+    const ep = cageEqualityEndpoints(cages, eq, cellIneqList);
+    if (!ep) continue;
+    const ra = cellRect(view, ep.a);
+    const rb = cellRect(view, ep.b);
+    ctx.beginPath();
+    ctx.moveTo(ra.x + ra.w / 2, ra.y + ra.h / 2);
+    ctx.lineTo(rb.x + rb.w / 2, rb.y + rb.h / 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// 笼间等值符号：在引导线中点画 "="（橙，与笼间大小同族）
+function drawCageEqualityGlyph(
+  ctx: CanvasRenderingContext2D,
+  view: View,
+  theme: { cageEq: string },
+  cages: Cage[],
+  eq: CageEquality,
+  cellIneqList: CellInequality[],
+) {
+  const ep = cageEqualityEndpoints(cages, eq, cellIneqList);
+  if (!ep) return;
+  const ra = cellRect(view, ep.a);
+  const rb = cellRect(view, ep.b);
+  const ax = ra.x + ra.w / 2;
+  const ay = ra.y + ra.h / 2;
+  const bx = rb.x + rb.w / 2;
+  const by = rb.y + rb.h / 2;
+  const len = Math.hypot(bx - ax, by - ay) || 1;
+  ctx.save();
+  ctx.strokeStyle = theme.cageEq;
+  drawEqGlyph(ctx, (ax + bx) / 2, (ay + by) / 2, (bx - ax) / len, (by - ay) / len, view.cellSize);
+  ctx.restore();
+}
+
+// 笼间等值端点选择：与笼间大小约束共用 pickCageEndpoints，保证避让行为一致
+function cageEqualityEndpoints(
+  cages: Cage[],
+  eq: CageEquality,
+  cellIneqList: CellInequality[],
+): { a: number; b: number } | null {
+  const cageA = cages.find((c) => c.id === eq.a);
+  const cageB = cages.find((c) => c.id === eq.b);
+  if (!cageA || !cageB) return null;
+  return pickCageEndpoints(cageA, cageB, cellIneqList);
 }

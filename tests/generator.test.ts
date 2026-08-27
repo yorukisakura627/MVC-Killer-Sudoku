@@ -33,8 +33,9 @@ describe('generatePuzzle', () => {
     const p = generatePuzzle({
       diff: 'normal',
       rng: mulberry32(123),
-      maxTries: 5,
-      timeoutMs: 20000,
+      // minLevel/评分带门槛会拒绝部分候选，预算给足避免误熔断
+      maxTries: 40,
+      timeoutMs: 30000,
     });
     if (!p) {
       console.warn('普通题生成失败，跳过断言');
@@ -43,17 +44,19 @@ describe('generatePuzzle', () => {
     expect(p.difficulty).toBe('normal');
     expect(p.solution.length).toBe(81);
     expect(p.givens.size).toBeGreaterThanOrEqual(DIFF_PARAMS.normal.minGivens);
+    // 需求3：不应存在"可见单格笼"（单格笼和值等价给定数，属冗余约束）
+    expect(p.cages.some((c) => c.cells.length === 1 && c.sum !== null)).toBe(false);
     expect(hasUniqueSolution(p)).toBe(true);
   }, 60000);
 
-  it('三档难度都应保证给定数下限', () => {
-    const cases: Difficulty[] = ['easy', 'normal', 'hard'];
+  it('四档难度都应保证给定数下限', () => {
+    const cases: Difficulty[] = ['easy', 'normal', 'hard', 'expert'];
     for (const diff of cases) {
       const p = generatePuzzle({
         diff,
         rng: mulberry32(999 + diff.length),
-        maxTries: 3,
-        timeoutMs: 15000,
+        maxTries: 40,
+        timeoutMs: 60000,
       });
       if (!p) continue;
       expect(p.givens.size).toBeGreaterThanOrEqual(DIFF_PARAMS[diff].minGivens);

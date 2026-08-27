@@ -79,6 +79,8 @@ async function main() {
     cages: [],
     cellIneq: [],
     cageIneq: [],
+    cellEq: [],
+    cageEq: [],
     givens: new Map(),
     rating: 0,
     techniqueMax: '',

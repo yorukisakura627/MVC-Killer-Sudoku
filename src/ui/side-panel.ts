@@ -13,6 +13,12 @@ export interface SidePanelCallbacks {
   onHelp: () => void; // 帮助弹窗
 }
 
+// 四档难度的统一顺序与标签（side-panel/modal/puzzle-loader 共用语义）
+const DIFFS: Difficulty[] = ['easy', 'normal', 'hard', 'expert'];
+const DIFF_LABELS: Record<Difficulty, string> = {
+  easy: '简单', normal: '普通', hard: '困难', expert: '专家',
+};
+
 export class SidePanel {
   el: HTMLElement;
   private cb: SidePanelCallbacks;
@@ -46,9 +52,7 @@ export class SidePanel {
         <button data-act="next" title="下一题">下一题</button>
       </div>
       <div class="side-diff">
-        <button data-diff="easy">简单</button>
-        <button data-diff="normal">普通</button>
-        <button data-diff="hard">困难</button>
+        ${DIFFS.map((d) => `<button data-diff="${d}">${DIFF_LABELS[d]}</button>`).join('\n        ')}
       </div>
     `;
   }
@@ -61,7 +65,7 @@ export class SidePanel {
     this.prevBtn = q('[data-act="prev"]') as HTMLButtonElement;
     this.pickBtn = q('[data-act="pick"]') as HTMLButtonElement;
     this.nextBtn = q('[data-act="next"]') as HTMLButtonElement;
-    for (const d of ['easy', 'normal', 'hard'] as Difficulty[]) {
+    for (const d of DIFFS) {
       this.diffBtns[d] = q(`[data-diff="${d}"]`) as HTMLButtonElement;
     }
   }
@@ -71,9 +75,10 @@ export class SidePanel {
     this.pickBtn.addEventListener('click', () => this.cb.onPick());
     this.nextBtn.addEventListener('click', () => this.cb.onNext());
     this.helpBtn.addEventListener('click', () => this.cb.onHelp());
-    this.diffBtns.easy.addEventListener('click', () => this.cb.onNewGame('easy'));
-    this.diffBtns.normal.addEventListener('click', () => this.cb.onNewGame('normal'));
-    this.diffBtns.hard.addEventListener('click', () => this.cb.onNewGame('hard'));
+    // 统一绑定四档难度按钮点击
+    for (const d of DIFFS) {
+      this.diffBtns[d].addEventListener('click', () => this.cb.onNewGame(d));
+    }
   }
 
   // 由 main.ts 的 subscribe 回调调用：同步计时、题号、难度高亮、导航可用性
@@ -84,7 +89,7 @@ export class SidePanel {
     const list = getPuzzleList(diff);
     const idx = list.findIndex((p) => p.id === store.puzzle.id);
     this.noEl.textContent = idx >= 0 ? '#' + formatPuzzleNo(getGlobalNumber(diff, idx)) : '#---';
-    for (const d of ['easy', 'normal', 'hard'] as Difficulty[]) {
+    for (const d of DIFFS) {
       this.diffBtns[d].classList.toggle('active', d === diff);
     }
     // 题库为空时禁用导航
