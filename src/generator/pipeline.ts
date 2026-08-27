@@ -57,10 +57,11 @@ export function generatePuzzle(opts: GenOptions): Puzzle | null {
     const cageIneq = sowCageIneq(cages, sol, cageCount, rng);
 
     // 撒等值约束（需求5）：格间（非 peer 同值格对）+ 笼间（隐藏笼同和值对）
+    //   笼间等值传入 cellIneq/cageIneq 做位置避让：不与大小约束、和值标签重叠（需求3）
     const cellEqCount = randInt(params.cellEqRange, rng);
     const cageEqCount = randInt(params.cageEqRange, rng);
     const cellEq = sowCellEquality(sol, cellEqCount, rng);
-    const cageEq = sowCageEquality(cages, sol, cageEqCount, rng);
+    const cageEq = sowCageEquality(cages, sol, cageEqCount, rng, cellIneq, cageIneq);
 
     // 初始谜题：所有 81 格作为给定
     const allGivens = new Map<number, number>();

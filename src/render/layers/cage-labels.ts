@@ -3,8 +3,9 @@ import { cellRect } from '../view';
 
 // 笼标签层：仅显示有和值的笼的和值
 //   隐藏和值笼（sum=null，参与大小约束）不显示任何标签（需求3）
-//   样式改进：去掉底色块，和值直接嵌在笼左上角的边框线上——
-//   先用表格底色画小挖空块"盖住"边框线（覆盖效果），再在上面绘制数字
+//   样式：白底黑字小标签（需求修订：此前"去底色嵌边框"后白字叠白底不可读），
+//   白底块带浅灰细描边保证与表格背景区分；位置从笼左上格的左上角
+//   向笼体延伸方向（右/下邻格属于该笼）微移，让标签更"贴近"它所属的笼
 export const cageLabels: RenderLayer = {
   name: 'cage-labels',
   draw(ctx, view, theme) {
@@ -24,14 +25,21 @@ export const cageLabels: RenderLayer = {
           minIdx = idx;
         }
       }
+      const cellSet = new Set(cage.cells);
       const rect = cellRect(view, minIdx);
-      // 数字中心贴住格子左上角（略向内偏移，横跨两条边框线的交点）
-      const cx = rect.x + 1;
-      const cy = rect.y + 1;
-      // 挖空块：表格底色小矩形盖住边框线，让数字"嵌"在框上而非压在色块里
-      ctx.fillStyle = theme.bg;
+      // 向笼体方向偏移：右邻格属于笼则右移，下邻格属于笼则下移，
+      // 使标签贴近笼的延伸部分，便于辨认该和值属于哪个笼
+      const dx = cellSet.has(minIdx + 1) && minIdx % 9 < 8 ? 5 : 0;
+      const dy = cellSet.has(minIdx + 9) && Math.floor(minIdx / 9) < 8 ? 5 : 0;
+      const cx = rect.x + 1 + dx;
+      const cy = rect.y + 1 + dy;
+      // 白底块：先画白色小矩形（盖住边框线交叉处），再画浅灰描边与黑色数字
+      ctx.fillStyle = theme.cageLabelBg; // 纯白底（theme 中定义）
       ctx.fillRect(cx - 9, cy - 7, 18, 14);
-      ctx.fillStyle = theme.cageLabelFg;
+      ctx.strokeStyle = theme.cageLabelBorder; // 中灰描边：让白底小方块轮廓清晰可辨
+      ctx.lineWidth = 1;
+      ctx.strokeRect(cx - 9, cy - 7, 18, 14);
+      ctx.fillStyle = theme.cageLabelFg; // 黑字
       ctx.fillText(`${cage.sum}`, cx, cy + 0.5);
     }
   },

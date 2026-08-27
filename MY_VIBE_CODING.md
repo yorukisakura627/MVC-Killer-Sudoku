@@ -273,3 +273,23 @@ hard 首轮仅成功 2/4（其余超时），补跑一轮又成 2 题，凑齐 +
 | expert | 10/10 | 661\~709 | 156 | 35 | 30 |
 
 四档全部落带、无超时熔断（maxTries=40/timeoutMs=60s 下重生成一次通过）、id 无重复。
+
+---
+
+## 阶段 11：渲染可读性修订（0.2.3）
+
+### 用户反馈（4 点）
+1. 笼和值变纯白看不见 → 要求白底黑字，且标签向所属笼方向靠近
+2. 笼间等值 "=" 应与虚线同向（否则易误解为另一条对角线的格间标记），并加白底（与笼边框重合看不清）
+3. 笼间等值不应与笼间大小/格间大小/和值标签产生任何重叠
+4. 帮助弹窗版权加 sakura_yoruki（[github.com/yorukisakura627](https://github.com/yorukisakura627)），并补全等值约束玩法说明
+
+### 修复内容
+- **和值标签**（[cage-labels.ts](src/render/layers/cage-labels.ts)）：根因是挖空块用了 `theme.bg` 而数字是白色 → 白字叠白底。改为白底（`#ffffff`）+ 黑字（`#111827`）+ 中灰描边（新增 `theme.cageLabelBorder`），位置按笼延展方向（右/下邻格属于该笼）偏移 5px
+- **等值符号**（[inequalities.ts](src/render/layers/inequalities.ts)）：`drawEqGlyph` 重写为旋转坐标系绘制，支持两种方向——笼间 `'along'`（两横与虚线同向）、格间 `'perp'`（两横垂直连线）；全部带白底块（白填充+浅灰描边）隔离下方边框/虚线
+- **防重叠**（[inequality-sower.ts](src/generator/inequality-sower.ts)）：`sowCageEquality` 增加四重避让——排除与 cageIneq 同笼对；端点复用 `pickCageEndpoints` 避开格间约束；符号中点与 cageIneq 三角中点距离 ≥ 1 格；中点不落在有和值笼的左上格（标签位置）。`pickCageEndpoints`/`cellIneqUsesPair` 从渲染层上移到 [cage-builder.ts](src/generator/cage-builder.ts) 供两端共用（撒播与渲染位置一致的保证）
+- **帮助弹窗**（[modal.ts](src/ui/modal.ts)）：版权行加 sakura_yoruki 链接；标题改"大小与等值约束"；玩法列表补格间/笼间等值两条说明
+
+### 验证
+- tsc 0 错误、13 测试全过；浏览器像素级检查：橙 `=` 与虚线同向带白底、深蓝 `=` 带白底、各符号与三角/标签无像素重叠、帮助弹窗内容齐全，全部 PASS
+- 修复一处并行编辑冲突：`Theme.cageLabelBorder` 接口字段曾在并行编辑中丢失，已补回

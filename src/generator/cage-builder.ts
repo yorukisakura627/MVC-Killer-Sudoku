@@ -1,4 +1,5 @@
 import type { Cage } from '@/types/cage';
+import type { CellInequality } from '@/types/constraint';
 
 // 笼间大小约束的"弹性上限"（需求4）：大笼和值比小笼最多大 1+N
 //   N 随较小和值的绝对大小从 0 弹性增加到 3：和值越小，允许差值越紧
@@ -9,6 +10,56 @@ import type { Cage } from '@/types/cage';
 //   保证"隐藏对"与"可撒约束对"的判定标准一致；放在 cage-builder 避免循环依赖
 export function elasticLimit(minSum: number): number {
   return 1 + Math.min(3, Math.floor(minSum / 12));
+}
+
+// 判断 (a,b) 两格是否恰好是某条格间大小约束的两格（4 邻位置冲突）
+//   从渲染层上移到本模块：生成端（撒播笼间等值）与渲染端（选端点）共用同一实现，
+//   保证"撒播时避开的位置"与"渲染时选中的位置"完全一致
+export function cellIneqUsesPair(cellIneqList: CellInequality[], a: number, b: number): boolean {
+  for (const ii of cellIneqList) {
+    if ((ii.a === a && ii.b === b) || (ii.a === b && ii.b === a)) return true;
+  }
+  return false;
+}
+
+// 为笼间约束（大小/等值共用）选取一对端点格：A 笼一格 + B 笼一格
+//   优先"距离最近且不与格间大小约束的两格重合"；全部冲突时取最近并返回 conflict=true
+//   确定性函数：同输入必同输出——这是撒播端与渲染端位置一致的前提
+export function pickCageEndpoints(
+  cageA: Cage,
+  cageB: Cage,
+  cellIneqList: CellInequality[],
+): { a: number; b: number; conflict: boolean } | null {
+  type Cand = { a: number; b: number; dist: number; conflict: boolean };
+  const cands: Cand[] = [];
+  for (const a of cageA.cells) {
+    for (const b of cageB.cells) {
+      const ar = Math.floor(a / 9), ac = a % 9;
+      const br = Math.floor(b / 9), bc = b % 9;
+      const manhattan = Math.abs(ar - br) + Math.abs(ac - bc);
+      // 4 邻且共享 cellIneq 边 → 冲突（三角/等号会压到蓝色箭头）
+      const conflict = manhattan === 1 && cellIneqUsesPair(cellIneqList, a, b);
+      cands.push({ a, b, dist: manhattan, conflict });
+    }
+  }
+  if (cands.length === 0) return null;
+  // 排序：先冲突升序（false 在前），再距离升序
+  cands.sort((x, y) => {
+    if (x.conflict !== y.conflict) return x.conflict ? 1 : -1;
+    return x.dist - y.dist;
+  });
+  const best = cands[0];
+  return { a: best.a, b: best.b, conflict: best.conflict };
+}
+
+// 端点对的格坐标中点（行列可为 .5 边界值）：笼间符号位置的统一参考
+export function cageEndpointMidpoint(
+  ep: { a: number; b: number },
+): { r: number; c: number } {
+  return {
+    r: (Math.floor(ep.a / 9) + Math.floor(ep.b / 9)) / 2,
+    c: ((ep.a % 9) + (ep.b % 9)) / 2,
+  };
 }
 
 // 在完整解上铺设笼子：所有 81 格必须属于某笼，每笼 2~5 格连通

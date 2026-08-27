@@ -3,6 +3,7 @@ import type { View } from '../view';
 import { cellRect } from '../view';
 import type { CellInequality, CageInequality, CellEquality, CageEquality } from '@/types/constraint';
 import type { Cage } from '@/types/cage';
+import { pickCageEndpoints } from '@/generator/cage-builder';
 
 // 大小约束层：分别绘制格间（实心深蓝三角贴格子边）与笼间（空心橙三角+虚线引导）
 //   视觉三重区分：颜色 / 形状 / 位置
@@ -12,6 +13,8 @@ import type { Cage } from '@/types/cage';
 //   等值约束（需求5）：样式与大小约束同族（格间=深蓝、笼间=橙），用 "=" 字形区分方向
 //     - 格间等值：跨格连线（虚线低透明度，避免遮挡数字）+ 连线中点画 "="
 //     - 笼间等值：复用笼间端点选择（避开格间箭头冲突），引导虚线 + 中点画 "="
+//       等号与虚线同向（需求2），避免误读为另一条对角线的格间标记；等号带白底，
+//       与笼边框重叠时依然清晰
 export const inequalities: RenderLayer = {
   name: 'inequalities',
   draw(ctx, view, theme) {
@@ -89,45 +92,8 @@ function drawCellIneq(ctx: CanvasRenderingContext2D, view: View, ii: CellInequal
   }
 }
 
-// 判断 (a,b) 两格是否 4 邻且恰好是某条 cellIneq 的对应格对（位置冲突）
-function cellIneqUsesPair(cellIneqList: CellInequality[], a: number, b: number): boolean {
-  for (const ii of cellIneqList) {
-    if ((ii.a === a && ii.b === b) || (ii.a === b && ii.b === a)) return true;
-  }
-  return false;
-}
-
-// 为笼间约束选取一对端点（来自 A 笼一单元格、B 笼一单元格）
-//   优先"距离最近且不与格间大小约束的两格完全重合"；
-//   若所有候选都与 cellIneq 冲突（极端），则 fallback 取最近的，并返回 conflict=true 供绘制层偏移
-function pickCageEndpoints(
-  cageA: Cage,
-  cageB: Cage,
-  cellIneqList: CellInequality[],
-): { a: number; b: number; conflict: boolean } | null {
-  // 候选：{a, b, dist, conflict}
-  type Cand = { a: number; b: number; dist: number; conflict: boolean };
-  const cands: Cand[] = [];
-  for (const a of cageA.cells) {
-    for (const b of cageB.cells) {
-      const ar = Math.floor(a / 9), ac = a % 9;
-      const br = Math.floor(b / 9), bc = b % 9;
-      const manhattan = Math.abs(ar - br) + Math.abs(ac - bc);
-      // 4 邻且共享 cellIneq 边 → 冲突
-      const adj4 = manhattan === 1;
-      const conflict = adj4 && cellIneqUsesPair(cellIneqList, a, b);
-      cands.push({ a, b, dist: manhattan, conflict });
-    }
-  }
-  if (cands.length === 0) return null;
-  // 排序：先冲突升序（false 在前），再距离升序
-  cands.sort((x, y) => {
-    if (x.conflict !== y.conflict) return x.conflict ? 1 : -1;
-    return x.dist - y.dist;
-  });
-  const best = cands[0];
-  return { a: best.a, b: best.b, conflict: best.conflict };
-}
+// 判断 (a,b) 与端点选择逻辑已上移至 generator/cage-builder.ts：
+//   cellIneqUsesPair / pickCageEndpoints（生成端与渲染端共用，保证位置一致）
 
 // 笼间引导虚线：连接两笼选定端点的中心
 function drawCageIneqGuide(
@@ -208,10 +174,12 @@ function drawCageIneqTriangle(
   ctx.stroke();
 }
 
-// 等值符号 "="：在点 (x,y) 处画两条平行短线，两横垂直于连线方向
-//   (ux,uy) 是连线方向单位向量：两横各自沿法向 (nx,ny) 延伸，
-//   两条横线之间沿连线方向 (ux,uy) 偏移 ±gap，形成 "=" 字形
-//   尺寸随格子大小缩放，与三角符号视觉权重一致
+// 等值符号 "="：在点 (x,y) 处画带白底的两横
+//   (ux,uy) 是连线方向单位向量；坐标系旋转到连线方向后绘制：
+//     - orient='along'：两横与虚线同向（沿连线延伸，法向偏移 ±gap）——笼间等值用，
+//       视觉上是"虚线中段加粗成双线"，不会被误读为另一条对角线的格间标记（需求2）
+//     - orient='perp'：两横垂直于连线（沿法向延伸，连线方向偏移 ±gap）——格间等值用
+//   白底块先画（白色填充+浅灰细描边），隔离下方的笼边框/虚线，符号再叠上（需求2）
 function drawEqGlyph(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -219,22 +187,37 @@ function drawEqGlyph(
   ux: number,
   uy: number,
   cellSize: number,
+  orient: 'along' | 'perp',
+  color: string,
 ) {
   const half = Math.max(5, cellSize * 0.1); // "=" 单横的半长
   const gap = Math.max(2.5, cellSize * 0.05); // 两横间距的一半
-  // 法向单位向量（垂直于连线）：两横的延伸方向
-  const nx = -uy;
-  const ny = ux;
+  ctx.save();
+  // 平移到符号中心并旋转，使局部 x 轴与连线方向重合，绘制逻辑简化为水平/垂直
+  ctx.translate(x, y);
+  ctx.rotate(Math.atan2(uy, ux));
+  // 白底块尺寸：随方向决定长宽（沿横线方向长、另一向窄）
+  const w = (orient === 'along' ? half : gap) * 2 + 6;
+  const h = (orient === 'along' ? gap : half) * 2 + 6;
+  ctx.fillStyle = '#ffffff';
+  ctx.strokeStyle = '#d1d5db';
+  ctx.lineWidth = 1;
+  ctx.fillRect(-w / 2, -h / 2, w, h);
+  ctx.strokeRect(-w / 2, -h / 2, w, h);
+  // 两横：along 时横线沿 x（连线方向）、沿 y 偏移；perp 时相反
+  ctx.strokeStyle = color;
   ctx.lineWidth = Math.max(2, Math.floor(cellSize * 0.045));
+  const barDx = orient === 'along' ? half : 0; // 横线延伸方向的半长
+  const barDy = orient === 'along' ? 0 : half;
   for (const s of [-1, 1]) {
-    // 第 s 条横线：中心沿连线方向偏移 s*gap，线体沿法向延伸 ±half
-    const cx = x + ux * s * gap;
-    const cy = y + uy * s * gap;
+    const cx = orient === 'along' ? 0 : s * gap;
+    const cy = orient === 'along' ? s * gap : 0;
     ctx.beginPath();
-    ctx.moveTo(cx - nx * half, cy - ny * half);
-    ctx.lineTo(cx + nx * half, cy + ny * half);
+    ctx.moveTo(cx - barDx, cy - barDy);
+    ctx.lineTo(cx + barDx, cy + barDy);
     ctx.stroke();
   }
+  ctx.restore();
 }
 
 // 格间等值连线：低透明度虚线连接两格中心（跨格连线，等号画在连线中点）
@@ -277,8 +260,10 @@ function drawCellEqualityGlyph(
   const by = b.y + b.h / 2;
   const len = Math.hypot(bx - ax, by - ay) || 1;
   ctx.save();
-  ctx.strokeStyle = theme.cellEq;
-  drawEqGlyph(ctx, (ax + bx) / 2, (ay + by) / 2, (bx - ax) / len, (by - ay) / len, view.cellSize);
+  drawEqGlyph(
+    ctx, (ax + bx) / 2, (ay + by) / 2, (bx - ax) / len, (by - ay) / len,
+    view.cellSize, 'perp', theme.cellEq,
+  );
   ctx.restore();
 }
 
@@ -329,8 +314,11 @@ function drawCageEqualityGlyph(
   const by = rb.y + rb.h / 2;
   const len = Math.hypot(bx - ax, by - ay) || 1;
   ctx.save();
-  ctx.strokeStyle = theme.cageEq;
-  drawEqGlyph(ctx, (ax + bx) / 2, (ay + by) / 2, (bx - ax) / len, (by - ay) / len, view.cellSize);
+  // 笼间等号与虚线同向（'along'），白底隔离笼边框（需求2）
+  drawEqGlyph(
+    ctx, (ax + bx) / 2, (ay + by) / 2, (bx - ax) / len, (by - ay) / len,
+    view.cellSize, 'along', theme.cageEq,
+  );
   ctx.restore();
 }
 

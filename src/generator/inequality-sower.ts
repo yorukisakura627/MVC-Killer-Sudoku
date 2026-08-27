@@ -1,6 +1,6 @@
 import type { Cage } from '@/types/cage';
 import type { CellInequality, CageInequality, CellEquality, CageEquality } from '@/types/constraint';
-import { findAdjacentCagePairs, elasticLimit } from './cage-builder';
+import { findAdjacentCagePairs, elasticLimit, pickCageEndpoints, cageEndpointMidpoint } from './cage-builder';
 
 // 撒播格间大小约束：在解中随机选 count 个相邻格对，按解中值的方向标 > 或 <
 //   - 不允许重复同一对
@@ -131,27 +131,82 @@ export function sowCellEquality(
 // 撒播笼间等值约束（需求5）：在隐藏笼相邻对中选和值相等的笼对
 //   - 两笼和值必须真相等（约束与解一致）
 //   - 每笼最多参与 1 个等值约束
+//   - 防重叠（需求3）：笼间等值符号不得与笼间大小约束、格间大小约束、和值标签重叠
+//     1. 排除与 cageIneq 相同的笼对（同对必然同位置）
+//     2. 端点用 pickCageEndpoints（避开 cellIneq 共享边），与渲染端位置一致
+//     3. 符号中点与所有 cageIneq 三角中点距离 ≥ 1 格（欧氏）
+//     4. 符号中点不落在任何"有和值笼的左上格"（和值标签位置）
 export function sowCageEquality(
   cages: Cage[],
   sol: number[],
   count: number,
   rng: () => number = Math.random,
+  cellIneqList: CellInequality[] = [],
+  cageIneqList: CageInequality[] = [],
 ): CageEquality[] {
   if (count <= 0) return [];
+
+  // 与解无关的静态避让数据：
+  //   - cageIneq 笼对键集合（同对排除）
+  //   - cageIneq 各三角的中点（距离避让）
+  //   - 有和值笼的左上格集合（标签位置避让）
+  const cageIneqKeys = new Set(
+    cageIneqList.map((ci) => (ci.a < ci.b ? `${ci.a}-${ci.b}` : `${ci.b}-${ci.a}`)),
+  );
+  const cageById = new Map(cages.map((c) => [c.id, c]));
+  const cageIneqMids: Array<{ r: number; c: number }> = [];
+  for (const ci of cageIneqList) {
+    const ca = cageById.get(ci.a);
+    const cb = cageById.get(ci.b);
+    if (!ca || !cb) continue;
+    const ep = pickCageEndpoints(ca, cb, cellIneqList);
+    if (ep) cageIneqMids.push(cageEndpointMidpoint(ep));
+  }
+  // 有和值笼的左上格（行最小→列最小），等值符号中点不得落在这些格上
+  const labelCells = new Set<number>();
+  for (const cage of cages) {
+    if (cage.sum === null) continue;
+    let minIdx = cage.cells[0];
+    for (const idx of cage.cells) {
+      if (Math.floor(idx / 9) < Math.floor(minIdx / 9) ||
+          (Math.floor(idx / 9) === Math.floor(minIdx / 9) && idx % 9 < minIdx % 9)) {
+        minIdx = idx;
+      }
+    }
+    labelCells.add(minIdx);
+  }
+
   const hiddenCages = cages.filter((c) => c.sum === null);
   const pairs = findAdjacentCagePairs(hiddenCages);
   shuffleInPlace(pairs, rng);
 
   const result: CageEquality[] = [];
   const usedCages = new Set<number>();
+  const usedMids: Array<{ r: number; c: number }> = [];
   for (const [a, b] of pairs) {
     if (result.length >= count) break;
     if (usedCages.has(a.id) || usedCages.has(b.id)) continue;
+    // 与 cageIneq 同笼对 → 位置完全重合，直接排除
+    const key = a.id < b.id ? `${a.id}-${b.id}` : `${b.id}-${a.id}`;
+    if (cageIneqKeys.has(key)) continue;
     const sa = a.cells.reduce((s, idx) => s + sol[idx], 0);
     const sb = b.cells.reduce((s, idx) => s + sol[idx], 0);
     if (sa !== sb) continue; // 等值约束要求两笼和值真相等
+    // 端点与渲染端一致（避开 cellIneq）；无可用端点则跳过
+    const ep = pickCageEndpoints(a, b, cellIneqList);
+    if (!ep) continue;
+    const mid = cageEndpointMidpoint(ep);
+    // 符号中点不得落在有和值笼的左上格（和值标签）
+    const midCellIdx = Math.floor(mid.r) * 9 + Math.floor(mid.c);
+    if (labelCells.has(midCellIdx)) continue;
+    // 与 cageIneq 三角及已选 cageEq 符号保持至少 1 格距离
+    const minDistSq = 1;
+    const tooClose = [...cageIneqMids, ...usedMids]
+      .some((m) => (m.r - mid.r) ** 2 + (m.c - mid.c) ** 2 < minDistSq);
+    if (tooClose) continue;
     usedCages.add(a.id);
     usedCages.add(b.id);
+    usedMids.push(mid);
     result.push({ a: a.id, b: b.id });
   }
   return result;
