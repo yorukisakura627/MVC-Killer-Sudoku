@@ -20,6 +20,7 @@ interface CliArgs {
   seedBase: number;
   maxTries: number;
   timeoutMs: number;
+  append: boolean; // 是否追加到现有题库（true=保留旧题并拼接新题；false=覆盖）
 }
 
 function parseArgs(): CliArgs {
@@ -29,8 +30,10 @@ function parseArgs(): CliArgs {
   let seedBase = Date.now();
   let maxTries = 20;
   let timeoutMs = 30000;
+  let append = false;
   // 用 split('=') 取值，避免硬编码前缀长度出错（如 '--n=' 切片索引曾误写为 3 导致 NaN）
   for (const a of argv) {
+    if (a === '--append') { append = true; continue; }
     const eq = a.indexOf('=');
     if (eq < 0) continue;
     const key = a.slice(0, eq);
@@ -47,7 +50,7 @@ function parseArgs(): CliArgs {
     throw new Error(`未知难度: ${diff}（应为 easy/normal/hard）`);
   }
   if (n <= 0) throw new Error('--n 必须 > 0');
-  return { diff: diff as Difficulty, n, seedBase, maxTries, timeoutMs };
+  return { diff: diff as Difficulty, n, seedBase, maxTries, timeoutMs, append };
 }
 
 async function main() {
@@ -94,8 +97,25 @@ async function main() {
   const outDir = path.resolve(PROJECT_ROOT, 'public/puzzles');
   if (!fs.existsSync(outDir)) fs.mkdirSync(outDir, { recursive: true });
   const outPath = path.join(outDir, `${opts.diff}.json`);
-  fs.writeFileSync(outPath, JSON.stringify({ puzzles: results }, null, 2), 'utf-8');
-  console.log(`已写入 ${outPath}（共 ${results.length} 题）`);
+  // --append：读取旧题库并与新结果合并（按 id 去重），不覆盖历史题
+  let finalPuzzles: PuzzleJson[] = results;
+  if (opts.append && fs.existsSync(outPath)) {
+    try {
+      const existingRaw = fs.readFileSync(outPath, 'utf-8');
+      const existing = JSON.parse(existingRaw);
+      const oldPuzzles: PuzzleJson[] = Array.isArray(existing?.puzzles) ? existing.puzzles : [];
+      const seen = new Set<string>();
+      for (const p of oldPuzzles) seen.add(p.id);
+      const dedupNew = results.filter((p) => !seen.has(p.id));
+      finalPuzzles = [...oldPuzzles, ...dedupNew];
+      console.log(`--append 模式：旧题 ${oldPuzzles.length} + 新题 ${dedupNew.length}（去重跳过 ${results.length - dedupNew.length}）`);
+    } catch (e) {
+      console.warn('读取旧题库失败，改用覆盖写入：', e);
+      finalPuzzles = results;
+    }
+  }
+  fs.writeFileSync(outPath, JSON.stringify({ puzzles: finalPuzzles }, null, 2), 'utf-8');
+  console.log(`已写入 ${outPath}（共 ${finalPuzzles.length} 题）`);
 }
 
 main().catch((e) => {

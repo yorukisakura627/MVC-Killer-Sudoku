@@ -173,9 +173,46 @@ TypeScript 报多处未使用导入错误。
 
 ### 当前状态
 - 线上版可正常游玩：<https://killer-sudoku-sakurayoruki.netlify.app/>
-- 三难度题库齐全（easy 10 / normal 10 / hard 6）
 - 待办：移动端 DPR 适配 + 触摸操作（实现计划第 242 行，未做）
 
+---
+
+## 阶段 9：题库扩充 + 约束箭头防重合
+
+### 用户约定
+- **push 由用户自理**：AI 只帮忙 commit 到本地，不再执行 `git push`（此前 LICENSE/README/MY_VIBE_CODING 三次提交已由用户手动推上 GitHub）
+- **同步文档**：以后项目代码变更需要 commit 时，同步更新 README 和 MY_VIBE_CODING
+
+### 用户反馈：移动端触摸为何可用？
+其他人测试发现平板/手机端可正常游玩。经查 [pointer.ts](src/input/pointer.ts#L44-L47)：输入监听用的是 **Pointer Events API**（pointerdown/move/up/cancel），W3C 标准统一了鼠标/触摸/手写笔三种输入——移动端浏览器的触摸手势被自动翻译成 pointer 事件（touchstart→pointerdown 等），Canvas 选格/拖动多选原生可用；数字键盘是 DOM 按钮，点击同样是原生触摸响应。无需额外适配。
+
+### 用户要求
+1. 更新题库：简单 +10、普通 +10、困难 +4；简单和普通难度适当增加笼间大小约束
+2. 笼间金色箭头偶尔与格间蓝色箭头位置重合难辨认 → 加判断避让，实在不行移到蓝色箭头边上
+3. （长期约定）代码变更 commit 时同步更新两个文档
+
+### 我的分析与实现
+
+**题库参数调整**（[difficulty.ts](src/generator/difficulty.ts)）：
+| 难度 | cageHiddenRate | cageIneqRange |
+|------|----------------|---------------|
+| easy | 0 → **0.1**（需隐藏笼才能撒笼间约束） | [0,0] → **[1,2]** |
+| normal | 0.1 → **0.15** | [1,2] → **[2,3]** |
+
+**脚本追加模式**（[gen-puzzles.ts](scripts/gen-puzzles.ts)）：新增 `--append` 参数——读取旧题库 JSON 与新结果按 id 去重合并后写回，不覆盖历史题目。
+
+**笼间箭头防重合**（[inequalities.ts](src/render/layers/inequalities.ts)）：
+- 新增 `pickCageEndpoints`：枚举两笼所有格对，按「不与 cellIneq 共边优先 → 距离最近优先」排序选端点（引导虚线与三角共用同一选点，视觉一致）
+- 极端 fallback（如两单格笼相邻且该边恰有 cellIneq，无干净端点可选）：三角沿引导线法向偏移 0.35 cell，移到蓝色箭头边旁保证不重合
+
+### 题库生成结果
+| 难度 | 生成 | 结果 | 评分区间 | 笼间约束数 |
+|------|------|------|----------|-----------|
+| easy | +10 追加 | 20 题（10 成功） | 67~84 | 0~1 对/题 |
+| normal | +10 追加 | 20 题（10 成功） | 268~435 | 0~2 对/题 |
+| hard | +4（跑了两轮）| 10 题（2+2 成功，4 个超时熔断属预期） | 507~605 | 2~4 对/题 |
+
+hard 首轮仅成功 2/4（其余超时），补跑一轮又成 2 题，凑齐 +4 要求。三难度 id 去重校验通过，评分均落在本难度带内。
+
 ## 待办
-- 推送 LICENSE commit 到远程恢复 MIT 声明
-- 可选：移动端适配（手机/平板触摸 + 响应式布局）
+- 可选：细粒度移动端体验优化（响应式布局等）；Pointer Events 已保证基本触摸可用

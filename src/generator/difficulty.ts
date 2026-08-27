@@ -16,18 +16,18 @@ export const DIFF_PARAMS: Record<Difficulty, DiffParams> = {
   easy: {
     targetGivens: 35,
     minGivens: 30,
-    cageHiddenRate: 0,
+    cageHiddenRate: 0.1, // 需至少部分隐藏笼才能撒笼间约束
     cellIneqRange: [0, 5],
-    cageIneqRange: [0, 0],
+    cageIneqRange: [1, 2], // 适当增加笼间约束（新增）
     maxAllowedLevel: 2,
     ratingBand: [0, 250],
   },
   normal: {
     targetGivens: 18,
     minGivens: 15,
-    cageHiddenRate: 0.1,
+    cageHiddenRate: 0.15,
     cellIneqRange: [5, 12],
-    cageIneqRange: [1, 2],
+    cageIneqRange: [2, 3], // 适当增加笼间约束（从 [1,2] 上调）
     maxAllowedLevel: 4,
     ratingBand: [250, 500],
   },
