@@ -208,8 +208,9 @@ function drawCageIneqTriangle(
   ctx.stroke();
 }
 
-// 等值符号 "="：在点 (x,y) 处沿法向画两条平行短线
-//   (ux,uy) 是连线方向单位向量，"=" 的两横垂直于连线
+// 等值符号 "="：在点 (x,y) 处画两条平行短线，两横垂直于连线方向
+//   (ux,uy) 是连线方向单位向量：两横各自沿法向 (nx,ny) 延伸，
+//   两条横线之间沿连线方向 (ux,uy) 偏移 ±gap，形成 "=" 字形
 //   尺寸随格子大小缩放，与三角符号视觉权重一致
 function drawEqGlyph(
   ctx: CanvasRenderingContext2D,
@@ -221,13 +222,14 @@ function drawEqGlyph(
 ) {
   const half = Math.max(5, cellSize * 0.1); // "=" 单横的半长
   const gap = Math.max(2.5, cellSize * 0.05); // 两横间距的一半
-  // 法向单位向量（垂直于连线）
+  // 法向单位向量（垂直于连线）：两横的延伸方向
   const nx = -uy;
   const ny = ux;
   ctx.lineWidth = Math.max(2, Math.floor(cellSize * 0.045));
   for (const s of [-1, 1]) {
-    const cy = y + ny * s * gap;
-    const cx = x + nx * s * gap;
+    // 第 s 条横线：中心沿连线方向偏移 s*gap，线体沿法向延伸 ±half
+    const cx = x + ux * s * gap;
+    const cy = y + uy * s * gap;
     ctx.beginPath();
     ctx.moveTo(cx - nx * half, cy - ny * half);
     ctx.lineTo(cx + nx * half, cy + ny * half);
