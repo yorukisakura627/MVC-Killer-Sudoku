@@ -179,7 +179,8 @@ function drawCageIneqTriangle(
 //     - orient='along'：两横与虚线同向（沿连线延伸，法向偏移 ±gap）——笼间等值用，
 //       视觉上是"虚线中段加粗成双线"，不会被误读为另一条对角线的格间标记（需求2）
 //     - orient='perp'：两横垂直于连线（沿法向延伸，连线方向偏移 ±gap）——格间等值用
-//   白底块先画（白色填充+浅灰细描边），隔离下方的笼边框/虚线，符号再叠上（需求2）
+//   白底块先画（纯白填充、无描边），隔离下方的笼边框/虚线，符号再叠上；
+//   等号两横加大（half/gap 均放大），提升辨识度
 function drawEqGlyph(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -190,20 +191,17 @@ function drawEqGlyph(
   orient: 'along' | 'perp',
   color: string,
 ) {
-  const half = Math.max(5, cellSize * 0.1); // "=" 单横的半长
-  const gap = Math.max(2.5, cellSize * 0.05); // 两横间距的一半
+  const half = Math.max(6, cellSize * 0.13); // "=" 单横的半长（调大，提升可读性）
+  const gap = Math.max(3, cellSize * 0.065); // 两横间距的一半（随之放大保持比例）
   ctx.save();
   // 平移到符号中心并旋转，使局部 x 轴与连线方向重合，绘制逻辑简化为水平/垂直
   ctx.translate(x, y);
   ctx.rotate(Math.atan2(uy, ux));
-  // 白底块尺寸：随方向决定长宽（沿横线方向长、另一向窄）
-  const w = (orient === 'along' ? half : gap) * 2 + 6;
-  const h = (orient === 'along' ? gap : half) * 2 + 6;
+  // 白底块尺寸：随方向决定长宽（沿横线方向长、另一向窄），小留白圈住两横
+  const w = (orient === 'along' ? half : gap) * 2 + 4;
+  const h = (orient === 'along' ? gap : half) * 2 + 4;
   ctx.fillStyle = '#ffffff';
-  ctx.strokeStyle = '#d1d5db';
-  ctx.lineWidth = 1;
   ctx.fillRect(-w / 2, -h / 2, w, h);
-  ctx.strokeRect(-w / 2, -h / 2, w, h);
   // 两横：along 时横线沿 x（连线方向）、沿 y 偏移；perp 时相反
   ctx.strokeStyle = color;
   ctx.lineWidth = Math.max(2, Math.floor(cellSize * 0.045));

@@ -3,7 +3,7 @@ import { cellRect } from '../view';
 
 // 候选数层：每格内 3×3 小字布局，1~9 各占一宫
 //   需求2 后：有值格子也可保留候选（输入不同数字转候选），故移除"有值不画"限制
-//   样式改进：候选位置向格中心收缩 20%（远离笼和值角标），字号调大、颜色调深
+//   样式改进：候选位置向格中心收缩 30%（远离笼和值角标），字号调大、颜色调深
 export const candidates: RenderLayer = {
   name: 'candidates',
   draw(ctx, view, theme) {
@@ -30,11 +30,11 @@ export const candidates: RenderLayer = {
         if (!cell.userCands.has(v)) continue;
         const sr = Math.floor((v - 1) / 3);
         const sc = (v - 1) % 3;
-        // 原位置为 3×3 宫中心，向格中心收缩 20%
+        // 原位置为 3×3 宫中心，向格中心收缩 30%（0.7 倍：进一步远离左上角和值标签）
         const gx = rect.x + sub * (sc + 0.5);
         const gy = rect.y + sub * (sr + 0.5);
-        const x = cx + (gx - cx) * 0.8;
-        const y = cy + (gy - cy) * 0.8;
+        const x = cx + (gx - cx) * 0.7;
+        const y = cy + (gy - cy) * 0.7;
         ctx.fillText(String(v), x, y + 0.5);
       }
     }

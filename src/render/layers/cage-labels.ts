@@ -2,10 +2,10 @@ import type { RenderLayer } from './types';
 import { cellRect } from '../view';
 
 // 笼标签层：仅显示有和值的笼的和值
-//   隐藏和值笼（sum=null，参与大小约束）不显示任何标签（需求3）
-//   样式：白底黑字小标签（需求修订：此前"去底色嵌边框"后白字叠白底不可读），
-//   白底块带浅灰细描边保证与表格背景区分；位置从笼左上格的左上角
-//   向笼体延伸方向（右/下邻格属于该笼）微移，让标签更"贴近"它所属的笼
+//   隐藏和值笼（sum=null，参与大小/等值约束）不显示任何标签
+//   样式：白底黑字小标签，无描边（白底直接叠在浅色网格上已足够清晰）
+//   位置：白底块左上角与笼左上格的左上角精确对齐（上边/左边与笼边框线重合），
+//   所有标签整齐统一地嵌在笼角上；不再向笼体方向偏移（偏移导致各标签参差不齐）
 export const cageLabels: RenderLayer = {
   name: 'cage-labels',
   draw(ctx, view, theme) {
@@ -13,6 +13,10 @@ export const cageLabels: RenderLayer = {
     ctx.font = 'bold 12px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+
+    // 白底块尺寸：固定 18×14，覆盖格子左上角的边框交叉区域
+    const labelW = 18;
+    const labelH = 14;
 
     for (const cage of puzzle.cages) {
       // 隐藏和值笼不显示标签
@@ -25,22 +29,13 @@ export const cageLabels: RenderLayer = {
           minIdx = idx;
         }
       }
-      const cellSet = new Set(cage.cells);
       const rect = cellRect(view, minIdx);
-      // 向笼体方向偏移：右邻格属于笼则右移，下邻格属于笼则下移，
-      // 使标签贴近笼的延伸部分，便于辨认该和值属于哪个笼
-      const dx = cellSet.has(minIdx + 1) && minIdx % 9 < 8 ? 5 : 0;
-      const dy = cellSet.has(minIdx + 9) && Math.floor(minIdx / 9) < 8 ? 5 : 0;
-      const cx = rect.x + 1 + dx;
-      const cy = rect.y + 1 + dy;
-      // 白底块：先画白色小矩形（盖住边框线交叉处），再画浅灰描边与黑色数字
-      ctx.fillStyle = theme.cageLabelBg; // 纯白底（theme 中定义）
-      ctx.fillRect(cx - 9, cy - 7, 18, 14);
-      ctx.strokeStyle = theme.cageLabelBorder; // 中灰描边：让白底小方块轮廓清晰可辨
-      ctx.lineWidth = 1;
-      ctx.strokeRect(cx - 9, cy - 7, 18, 14);
-      ctx.fillStyle = theme.cageLabelFg; // 黑字
-      ctx.fillText(`${cage.sum}`, cx, cy + 0.5);
+      // 白底块与笼边框对齐：原点 = 格子左上角，块边与边框线重合 → 整齐不突兀
+      ctx.fillStyle = theme.cageLabelBg; // 纯白底
+      ctx.fillRect(rect.x, rect.y, labelW, labelH);
+      // 黑字画在白底块中心
+      ctx.fillStyle = theme.cageLabelFg;
+      ctx.fillText(`${cage.sum}`, rect.x + labelW / 2, rect.y + labelH / 2 + 0.5);
     }
   },
 };

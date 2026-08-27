@@ -114,12 +114,21 @@ export function showHelpOverlay(): void {
       <h3>玩法</h3>
       <ul>
         <li>在 9×9 格内填入 1~9，使每行、每列、每个 3×3 宫不重复。</li>
-        <li>Killer 笼：虚线框内数字之和等于左上角标注的和值，且笼内数字不重复。</li>
-        <li>格间大小约束：相邻格间的小三角（＞/＜）表示两侧数字大小关系。</li>
-        <li>笼间大小约束：参与大小关系的笼不显示和值，需通过 45 法则或邻接推理得到。</li>
-        <li>格间等值约束：两格间连线中点的 "=" 表示两格填相同数字（两格必不同行/列/宫）。</li>
-        <li>笼间等值约束：两笼间的 "=" 表示两笼和值相等；参与等值关系的笼不显示和值。</li>
+        <li>Killer 笼：虚线框内数字之和等于左上角<span style="background:#fff;color:#111827;font-weight:bold;padding:0 3px;border-radius:2px">白底黑字</span>标注的和值，且笼内数字不重复。</li>
+        <li>本作有两类额外约束，<b>看颜色分归属、看形状分含义</b>：
+          <ul>
+            <li><span style="color:#1e3a8a;font-weight:bold">深蓝色 = 格与格之间</span>：相邻两格共享边上的<span style="color:#1e3a8a;font-weight:bold">实心小三角（▶/◀）</span>表示大小关系，<b>尖角指向较小的一格</b>；两格间蓝色虚线连线中点的<span style="color:#1e3a8a;font-weight:bold">蓝色 "="</span> 表示两格填<b>相同数字</b>（两格必不同行/列/宫）。</li>
+            <li><span style="color:#f59e0b;font-weight:bold">金色 = 笼与笼之间</span>：两笼间金色虚线上的<span style="color:#f59e0b;font-weight:bold">空心三角</span>表示两笼和值的大小关系，<b>尖角指向较小和值的笼</b>；虚线上的<span style="color:#f59e0b;font-weight:bold">金色 "="</span> 表示两笼<b>和值相等</b>。</li>
+          </ul>
+        </li>
+        <li>参与笼间约束（大小或等值）的笼<b>不显示和值</b>，需通过 45 法则或邻接关系推理；其余笼左上角都标有和值。</li>
         <li>每个格子必填且仅填一个 1~9 的数字。</li>
+      </ul>
+      <h3>符号速查</h3>
+      <ul>
+        <li>深蓝实心三角（相邻格边上）：格间大小；金色空心三角（笼间虚线上）：笼间大小。尖角都指向<b>较小</b>一侧。</li>
+        <li>蓝色 "="（两格连线中点）：两格数字相同；金色 "="（两笼间虚线上）：两笼和值相等。</li>
+        <li>一句话记忆：<b>深蓝看格子，金色看笼子；三角比大小，等号表相同。</b></li>
       </ul>
       <h3>功能介绍</h3>
       <ul>

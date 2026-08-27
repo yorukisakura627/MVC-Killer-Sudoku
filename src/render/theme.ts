@@ -7,7 +7,6 @@ export interface Theme {
   cageBorder: string; // 笼边粗虚线（深红）
   cageLabelBg: string; // 笼和值标签底色（白）
   cageLabelFg: string; // 笼和值标签文字（黑）
-  cageLabelBorder: string; // 笼和值标签描边（中灰：白底与浅色表格背景的区分线）
   hiddenCageLabelBg: string; // 隐藏笼"?"标签底色（金）
   hiddenCageLabelFg: string;
   cellIneq: string; // 格间大小符号（深蓝）
@@ -33,7 +32,6 @@ export const DEFAULT_THEME: Theme = {
   cageBorder: '#b91c1c',
   cageLabelBg: '#ffffff', // 笼和值标签：白底黑字（白字叠白底不可读的修订）
   cageLabelFg: '#111827',
-  cageLabelBorder: '#9ca3af',
   hiddenCageLabelBg: '#f59e0b',
   hiddenCageLabelFg: '#ffffff',
   cellIneq: '#1e3a8a',

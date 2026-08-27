@@ -50,18 +50,19 @@ export function generatePuzzle(opts: GenOptions): Puzzle | null {
       if (cage.cells.length === 1) cage.sum = null;
     }
 
-    // 撒大小约束
+    // 撒大小约束（先格间后笼间：笼间端点需避开格间共享边）
     const cellCount = randInt(params.cellIneqRange, rng);
     const cageCount = randInt(params.cageIneqRange, rng);
     const cellIneq = sowCellIneq(sol, cellCount, rng);
-    const cageIneq = sowCageIneq(cages, sol, cageCount, rng);
+    const cageIneq = sowCageIneq(cages, sol, cageCount, rng, cellIneq);
 
     // 撒等值约束（需求5）：格间（非 peer 同值格对）+ 笼间（隐藏笼同和值对）
-    //   笼间等值传入 cellIneq/cageIneq 做位置避让：不与大小约束、和值标签重叠（需求3）
+    //   全局防重叠（需求3）：依次传入已撒约束做位置避让——
+    //   等号/三角符号互不重叠、不压和值标签，位置计算与渲染端一致
     const cellEqCount = randInt(params.cellEqRange, rng);
     const cageEqCount = randInt(params.cageEqRange, rng);
-    const cellEq = sowCellEquality(sol, cellEqCount, rng);
-    const cageEq = sowCageEquality(cages, sol, cageEqCount, rng, cellIneq, cageIneq);
+    const cellEq = sowCellEquality(sol, cellEqCount, rng, cellIneq, cageIneq, cages);
+    const cageEq = sowCageEquality(cages, sol, cageEqCount, rng, cellIneq, cageIneq, cellEq);
 
     // 初始谜题：所有 81 格作为给定
     const allGivens = new Map<number, number>();
