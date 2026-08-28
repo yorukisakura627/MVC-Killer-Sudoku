@@ -3,8 +3,11 @@ import type { GameStore } from '@/state/game-store';
 import { getPuzzleList, getGlobalNumber, formatPuzzleNo } from '@/puzzle-loader';
 import { formatTime } from './hud';
 
-// 左侧控制栏：计时+帮助 / 上一题·题目选择·下一题 / 难度切换
+// 左侧控制栏：计时+题号+帮助 / 上一题·题目选择·下一题 / 难度切换
 //   导航按钮在题库为空时禁用；难度切换高亮当前难度
+//   「提示」与「检查」按钮由右侧 Numpad 数字键盘统一提供，左侧控制栏不再重复
+//   （避免功能重复且影响布局观感）—— Numpad 端的提示按钮已带红圈剩余次数徽标，
+//   检查按钮走规则校验（行列宫/笼和/大小/等值）逻辑。
 export interface SidePanelCallbacks {
   onPrev: () => void; // 上一题（环形）
   onPick: () => void; // 题目选择（弹窗）
@@ -40,6 +43,10 @@ export class SidePanel {
   }
 
   private template(): string {
+    // 三行（恢复阶段 12 布局，删除阶段 13 误加的提示/检查行）：
+    //   行1：时间 | 题号 | 帮助
+    //   行2：上一题 | 题目选择 | 下一题
+    //   行3：4 档难度按钮
     return `
       <div class="side-time-row">
         <div class="side-time" data-el="time">00:00</div>
@@ -85,7 +92,7 @@ export class SidePanel {
   update(store: GameStore): void {
     this.timeEl.textContent = formatTime(store.elapsedMs);
     const diff = store.getDifficulty();
-    // 当前题全局序号（需求2）
+    // 当前题全局序号
     const list = getPuzzleList(diff);
     const idx = list.findIndex((p) => p.id === store.puzzle.id);
     this.noEl.textContent = idx >= 0 ? '#' + formatPuzzleNo(getGlobalNumber(diff, idx)) : '#---';

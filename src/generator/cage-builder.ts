@@ -23,7 +23,9 @@ export function cellIneqUsesPair(cellIneqList: CellInequality[], a: number, b: n
 }
 
 // 为笼间约束（大小/等值共用）选取一对端点格：A 笼一格 + B 笼一格
-//   优先"距离最近且不与格间大小约束的两格重合"；全部冲突时取最近并返回 conflict=true
+//   要求：两格棋盘距离 ≤ 1（同行/列相邻或对角相邻），避免连线横跨多格遮挡候选数
+//   优先"距离最近且不与格间大小约束的两格重合"；全部冲突或无相邻格对时返回 null
+//   （上层撒播收到 null 后跳过该笼对，由 pipeline 外层换新题）
 //   确定性函数：同输入必同输出——这是撒播端与渲染端位置一致的前提
 export function pickCageEndpoints(
   cageA: Cage,
@@ -36,13 +38,17 @@ export function pickCageEndpoints(
     for (const b of cageB.cells) {
       const ar = Math.floor(a / 9), ac = a % 9;
       const br = Math.floor(b / 9), bc = b % 9;
+      // 棋盘距离 = max(|dr|, |dc|)：≤ 1 表示同行/列相邻或对角相邻
+      //   连线只穿两个端点格之间的共享边或角点，不会遮挡其他格的候选数
+      const boardDist = Math.max(Math.abs(ar - br), Math.abs(ac - bc));
+      if (boardDist > 1) continue; // 横跨多格的端点直接排除
       const manhattan = Math.abs(ar - br) + Math.abs(ac - bc);
       // 4 邻且共享 cellIneq 边 → 冲突（三角/等号会压到蓝色箭头）
       const conflict = manhattan === 1 && cellIneqUsesPair(cellIneqList, a, b);
       cands.push({ a, b, dist: manhattan, conflict });
     }
   }
-  if (cands.length === 0) return null;
+  if (cands.length === 0) return null; // 两笼无相邻格对，不撒约束
   // 排序：先冲突升序（false 在前），再距离升序
   cands.sort((x, y) => {
     if (x.conflict !== y.conflict) return x.conflict ? 1 : -1;

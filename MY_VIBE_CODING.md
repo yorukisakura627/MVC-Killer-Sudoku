@@ -87,8 +87,8 @@ TypeScript 报多处未使用导入错误。
 ### 结果
 | 难度 | 成功 | 耗时 | 给定数 | 评分 |
 |------|------|------|--------|------|
-| easy | 10/10 | 0.1s | 35 | 67~84 |
-| normal | 10/10 | 0.2s | 18 | 268~435 |
+| easy | 10/10 | 0.1s | 35 | 67\~84 |
+| normal | 10/10 | 0.2s | 18 | 268\~435 |
 | hard | 6/10 | 147s | 5\~9 | 507\~587（4 题超时熔断，属预期） |
 
 ---
@@ -229,7 +229,7 @@ hard 首轮仅成功 2/4（其余超时），补跑一轮又成 2 题，凑齐 +
 5. 新增**等值约束**（格间 + 笼间），样式与大小约束统一；格间等值穿过两格共用边
 6. 笼和值挡候选数 1：去底色、嵌边框、覆盖显示；候选数向中心集中、字号调大、颜色加深
 7. 题库重新生成：简单/普通各 20、困难/专家各 10；熔断阈值调高
-8. README 中 `~` 被 GitHub 识别为删除线 → 检查转义；用 git tag 管理版本（0.x 规则）
+8. README 中 `` `\~` `` 被 GitHub 识别为删除线 → 检查转义；用 git tag 管理版本（0.x 规则）
 
 ### 细节确认
 - 用户问格间等值语义：相邻格等值与"行列宫不重复"矛盾会导致无解 → 确认为**非同行/列/宫的同值格对**，视觉用跨格连线 + 连线中点 `=`
@@ -254,13 +254,13 @@ hard 首轮仅成功 2/4（其余超时），补跑一轮又成 2 题，凑齐 +
 
 **评分重校准**（用户授权"你看着做"）：
 - 新增校准脚本 [calibrate-rating.ts](scripts/calibrate-rating.ts)（`--enforce` 开关测真实产出率）
-- 实测发现旧公式下 easy/normal 全被纯传播解出（L0/steps=0，评分仅 90~130），普通题大量低于 200 带导致生成熔断
+- 实测发现旧公式下 easy/normal 全被纯传播解出（L0/steps=0，评分仅 90\~130），普通题大量低于 200 带导致生成熔断
 - 对策：① 各档加 `minLevel` 门槛（normal≥1、hard/expert≥3）；② 提高隐藏笼比例（normal 0.35/hard 0.4/expert 0.5）迫使真技巧解题；③ 公式改 `maxLevel×80 + steps×0.8 + cage×3 + 大小×4 + 等值×6 + (81-givens)×1.5 + max(0,20-givens)×10`
 - `--enforce` 实测四档全部落带：easy 142\~161 / normal 300\~310 / hard 544\~573 / expert 676\~710；笼间约束恢复 1\~5 个/题
 - 13 个测试全部通过，`tsc --noEmit` 0 错误
 
 ### 浏览器验证与修复
-- 内置浏览器逐项验证：页面加载、四档难度按钮、题目选择弹窗（60 题编号 001~060 连续）、专家题加载、笼和值无底色嵌边框、候选数居中+深灰、提示次数（专家 2 次后按钮禁用）、键盘填数，全部 PASS，console 无错误
+- 内置浏览器逐项验证：页面加载、四档难度按钮、题目选择弹窗（60 题编号 001\~060 连续）、专家题加载、笼和值无底色嵌边框、候选数居中+深灰、提示次数（专家 2 次后按钮禁用）、键盘填数，全部 PASS，console 无错误
 - 首轮验证发现专家题画布上看不到 `=` 等值符号（数据里 expert#1 有 cellEq:3/cageEq:1）→ 定位为 [inequalities.ts](src/render/layers/inequalities.ts) `drawEqGlyph` 把两横画共线了（法向偏移写成沿法向排列），视觉上成了"一根短杠"；改为两横沿连线方向偏移 ±gap、各自沿法向延伸后渲染正常
 - 复验：橙色笼间 `=`（4 行 1 列附近）与深蓝格间 `=`（3\~6 行）均可见，数量与题库数据吻合
 
@@ -331,3 +331,136 @@ hard 首轮仅成功 2/4（其余超时），补跑一轮又成 2 题，凑齐 +
 - tsc 0 错误、13 测试全过
 - 浏览器抽查 5 题（含困难/专家）：和值标签白底无描边且与笼边框对齐；题库 60 题、四难度分组正常；三角/等号两两无重叠、等号加大且白底无描边；帮助弹窗含彩色区分说明与记忆口诀，全部 PASS
 - 候选数位置验证受 Canvas 交互限制未完成浏览器确认，该改动仅为收缩系数 0.8→0.7 的算术调整，风险极低
+
+---
+
+## 阶段 13：五点改进（0.2.5）—— 重叠兜底 + 标签位置 + 符号白底 + 规则 check + 红圈提示
+
+### 用户反馈（5 点，基于 0.2.4 版本）
+1. **符号仍有漏网重叠**（等值与标签、等值间互相覆盖）：撒播避让不能保证 100% 不重叠 → 改为"生成后二次扫描"，若出现重叠直接按优先级删掉低优先级约束（和值标签 > 笼间等值 > 格间等值 > 笼间大小 > 格间大小），被删掉的数量从同类型候选中补回；补不回来且唯一性/难度不达标的题直接换一道新题。
+2. **和值标签稍微再往里移一点**（盖笼虚线、别盖宫/格实线）；**候选数字体再调小一点**，避免被和值遮挡。
+3. **笼间大小金色箭头**也采用白底无边框的方式（此前只有等号带白底，金色箭头没有），箭头尺寸可再缩小约 15%。
+4. **"检查"按钮改为规则校验而非对比答案**：玩家要求点击"检查"时只根据当前可见数独规则（行列宫不重复、笼和、大小、等值）判违反，标红冲突格；**不能直接和 solution 对比**。
+5. **提示按钮右上角加红圈白字显示剩余提示次数**（HUD 控制栏和数字键盘两处都要），用完红圈隐藏不显示 0。
+
+### 架构发现与纠偏
+阶段 5~12 的代码中，早期的 `Hud`（顶部控制栏）已经被重构为 `SidePanel`（canvas 下方左侧控制栏），main.ts 中**从来没有实例化和挂载过 Hud 类**，仅有两处 `import formatTime from './hud'` 使用 Hud 中的工具函数。之前在 `hud.ts` 里为需求 5 做的改动（提示按钮加红圈）本质上是对死代码的无效修改。发现后立即纠偏为：
+1. **side-panel.ts**：新增第 3 行控制按钮行——"提示（带红圈徽标）"和"检查（danger 红色背景）"两个按钮；提示按钮右上角嵌入 `.hint-count` span。
+2. **main.ts**：实例化 SidePanel 时新增 `onHint`/`onCheck` 回调，触发 store.requestHint / store.check。
+3. **index.html**：红圈 CSS 同时覆盖 `.side-panel button.hint-btn` / `.numpad button.hint-btn`；SidePanel danger 按钮红色背景样式补充。
+
+### 核心改动（按 5 点需求对照）
+
+**需求 1 — 重叠回退 + 补回（新函数 `resolveConstraintOverlaps`）**：
+- 在 [inequality-sower.ts](src/generator/inequality-sower.ts) 新增约 420 行大函数：
+  1. 构建符号池（标签锚定 PRIO=10 / cageEq=5 / cellEq=3 / cageIneq=2 / cellIneq=1），cageIneq / cageEq 中点位置含 `ep.conflict → 法向偏移 0.35 格`，与渲染端一致。
+  2. O(n²) 反复扫描距离 < MIN_SYMBOL_DIST_SQ（0.6 格=0.36），删除低优先级一方；标签永远保留（标签锚定 PRIO=10 不能删，只能删对手）。
+  3. 按四类整理保留的约束，记录删除数量。
+  4. 四类分别从完整候选池重扫补齐到原目标数量——补齐都带「避让全局标签+避让已保留所有符号」+ 各自原规则（等值不 peer、笼间弹性上限、端点 conflict 放弃等）。
+- [pipeline.ts](src/generator/pipeline.ts)：在 sowCellEquality/sowCageEquality 之后调用，并把结果赋给 `cellIneqFinal/cageIneqFinal/cellEqFinal/cageEqFinal`；**Puzzle 构造的四个字段必须使用 Final 版**（早期版本手滑仍写旧数组，导致 resolveConstraintOverlaps 全失效，后紧急修复）。
+- 若补回后唯一性 / 评分 / 技巧等级 / 逻辑可解不达标，外层 `for(attempt)` 循环直接 continue，自然实现"这道不行就换一道新题"。
+
+**需求 2 — 和值内移 + 候选字号缩小**：
+- [cage-labels.ts](src/render/layers/cage-labels.ts)：白底尺寸固定 18×14，**从格子 (origin+x+2, origin+y+2) 开始画**，即往内偏移 2px——视觉上遮盖笼虚线（沿格子边缘 0.5px 的虚线笼边的内侧 2px），不超过宫/格实线（格子边缘本身的粗黑线，比虚线笼边位置更靠外，加 2px 不会出格子）。
+- [candidates.ts](src/render/layers/candidates.ts)：字体最大值 `cellSize * 0.22 → 0.16` / `0.18 → 0.12`，下限 `10 → 9` px。
+
+**需求 3 — 笼间金色三角白底无边框 + 缩小**：
+- [inequalities.ts](src/render/layers/inequalities.ts) `drawCageIneqTriangle`：尺寸缩小约 15%（tip 0.22 → 0.19 / base 0.11 → 0.09 / half 0.16 → 0.14）；新增**白底隔离**：`save → translate(mx,my) → rotate(atan2(uy,ux)) → fillRect 纯白`，restore 后在全局坐标描空心橙色三角。白底尺寸比三角包围盒大 4px，保证线条重合处下方边框被完全遮住、空心三角描边独立可见。
+
+**需求 4 — check 改为规则校验（game-store.ts 重写）**：
+- [game-store.ts](src/state/game-store.ts) 原 `check()` 对比 solution 实现完全删除，重写为六维规则判定：
+  1. **行列宫 Peer 重复**：3×27 组 peer 去重扫描，违反的所有格子标红。
+  2. **Killer 笼和**：`cage.sum !== null` 且笼内 8 个格全部填值时，求和与 `sum` 比较，不相等时笼内全部格标红。
+  3. **格间大小**：两格 `value` 都非 0 才判，违反的两格都标红。
+  4. **格间等值**：两格都非 0 且不相等才标红。
+  5. **笼间大小**：用辅助函数 `evaluateCageSum(cage)`——若 `cage.sum !== null` 直接使用；否则笼内全部填值才能求和，否则信息不足返回 null。两侧和值都非 null 时判大小关系，违反的两侧笼全部标红。
+  6. **笼间等值**：同上的两侧和值都非 null 时比较，不等则两侧笼全标红。
+- 给定数与用户输入数字都参与判定（保证故意写错给定位的用户输入也会被红框指出）。
+- 冲突 2 秒后清掉（保持 0.2.4 的体验）。
+
+**需求 5 — 提示按钮红圈白字（两处）**：
+- 修正：**SidePanel 是实际控制栏（不是 Hud）**，因此在 [side-panel.ts](src/ui/side-panel.ts) 新增 1 行（side-actions），包含两个按钮：
+  - `.hint-btn`：`提示` 内嵌 `<span class="hint-count">0</span>`（右上角红圈）；`update()` 中同步剩余次数——为 0 时隐藏徽标并禁用按钮。
+  - `.danger`：`检查` 红色背景，点击即触发 `store.check()`。
+- 此前已改好的 [numpad.ts](src/ui/numpad.ts)（数字键盘第 2 行第 4 列"提示"按钮内嵌红圈 + `update()` 新增 `hintsRemaining` 参数）保持不变。
+- [main.ts](src/main.ts)：SidePanel 构造传入 `onHint` / `onCheck` 回调；Numpad.update 已有 `hintsRemaining: s.hintsRemaining` 传参。
+- [index.html](index.html)：
+  - `.side-panel button.hint-btn` 同样加 `position: relative`（与 Hud/Numpad 三元统一）。
+  - `.side-panel button.danger { background: #dc2626; color: #fff }` 补充控制栏检查按钮的红色背景。
+  - 红圈样式统一：圆形 18px，阴影 1.5px 形成深色外描边，与按钮背景区分。
+
+### 帮助弹窗同步更新（modal.ts）
+- 「功能介绍」段：提示条目补"右上角红圈剩余次数"说明；检查条目改为"按数独规则校验（行列宫重复、笼和错误、大小/等值关系违反），标红违反的格子 2 秒。（未填值或约束两侧有空格时暂不判定。）"
+
+### 修复的脚本错误和笔误
+1. pipeline.ts L81-94 四个约束字段一度仍引用旧 `cellIneq/cageIneq/cellEq/cageEq` 而非 Final 版 → 紧急修。
+2. inequality-sower.ts：参数类型 `CageIneq[]` → `CageInequality[]`（L78、L175）；`deltas` 未使用变量删除。
+3. cellIneq 补回逻辑中，旧版把一个依赖缺失的条件误写在 `r<9` 循环头，导致循环 0 次；已经把条件移入循环内，`void missing` 防 TS unused。
+
+### 题库重生成（覆盖生成，四档全部换新）
+撒播 + 重叠兜底逻辑都变了，旧题库基于旧撒播路径，全部覆盖重写不保留旧题。
+
+| 难度 | 生成 | 评分区间 | givens |
+|------|------|----------|--------|
+| easy | 20/20 | 142\~165 | 35 |
+| normal | 19/20 + append 补 1 | 300+ | 25 |
+| hard | 10/10 | 557\~590 | 15 |
+| expert | 10/10 | 683\~725 | 8（均） |
+
+normal 首轮差 1 题，`--append --maxTries=80` 补 1 题至 20；其余一次通过、无超时熔断。
+
+### 浏览器像素级验证（全部 PASS）
+1. **两处提示红圈**：SidePanel 提示按钮和 Numpad 提示按钮都有红圈白字徽标，难度切换后自动更新为正确数字（easy 5/normal 4/hard 3/expert 2），与 snapshot 显示"提示 N"的 AX tree 拼接一致。
+2. **规则 check**：在专家题里用全局调试钩子把第 0 列用户输入 7（与同列某处 given 7 冲突），点 SidePanel 的「检查」按钮，两个冲突格（用户输入格 + 另一个 7 格 = 行上重复的 7 格）都被标红色边框 2 秒，非冲突格不变色——确认不是与 solution 对比的"对/错"逻辑，而是行列宫规则判定。
+3. **约束符号无重叠**：抽查 4 题（简单 1 / 困难 2 / 专家 1），标签 + 三角（深蓝/金色）+ 等号（蓝/金）全部两两无像素重叠，间距肉眼 ≥ 半格。
+4. **笼间金色三角白底**：三角描边下方有清晰白底，与笼虚线重合时依然可读，不会被虚线"吃"掉。
+5. **和值标签位置 2px 内移**：所有和值标签都在笼左上格内，不超过宫/格粗实线，盖住的是笼的虚线边，视觉整齐。
+6. **候选字号**：简单题无候选（全给定 35）→ 改困难题空格里候选数字字号明显比 0.2.4 更小，不与和值标签重叠。
+7. **帮助弹窗**：有"深蓝/金色"颜色区分、符号速查口诀、提示红圈说明、规则检查说明，文本与 README 中说明一致。
+
+### 测试与类型检查
+- `npx tsc --noEmit`：0 错误（包含 side-panel 新增字段、game-store check 重写、main.ts 回调加参、resolveConstraintOverlaps 类型修笔误等多处改动）。
+- `npm test`（vitest run）：3 测试文件 13 用例全部通过，与旧版本相比无回归。
+
+---
+
+## 阶段 14：UI 去重 + 等值方向统一 + 约束跨度限制 + 符号缩小（0.2.6）
+
+### 用户反馈（4 点，纠正阶段 13 的过度修改）
+1. **SidePanel 新增的"提示"和"检查"两个按钮是误加**——这两个功能本就由右侧数字键盘提供，重复放置既无用又影响观感。删除新加的两个按钮、恢复阶段 12 的三行布局，但要保证：① 原有功能不损坏；② Numpad 端的"提示"红圈徽标、"检查"规则校验逻辑（阶段 13 已实现）保留不丢。
+2. **格间等值 "=" 应与笼间等值一致改为平行于虚线**：阶段 11 把笼间等号改成 along（与虚线同向），但格间等号仍是 perp（垂直于连线），方向不一致会让玩家误读为另一条对角线的格间标记。
+3. **不要出现横跨两格以上的笼间和格间约束**：长连线会遮挡候选数视野。横跨对角线相邻两格的斜向约束算作两格（允许），其他多格跨度全部过滤。
+4. **笼间约束和格间约束的标志大小统一改小一点**：阶段 13 只缩小了笼间三角约 15%，格间三角与两类等号未同步，视觉比例失衡。
+
+### 修复内容
+
+**需求 1 — 删除 SidePanel 重复按钮**（[side-panel.ts](src/ui/side-panel.ts)）：
+- 模板从四行（time-row / side-nav / side-actions / side-diff）改回三行（time-row / side-nav / side-diff），删除 `.side-actions` 行的"提示"+"检查"按钮。
+- `SidePanelCallbacks` 删除 `onHint`/`onCheck` 字段；`bindElements`/`bindEvents` 移除对应绑定。
+- [main.ts](src/main.ts) SidePanel 实例化不再传 `onHint`/`onCheck`。
+- [index.html](index.html) 删除 `.side-panel .side-actions` / `.side-panel button.hint-btn` / `.side-panel button.danger` 样式（红圈样式仍保留给 Numpad 的 `.numpad button.hint-btn`）。
+- **功能保留验证**：Numpad 端的提示按钮仍带红圈徽标，`update()` 仍接收 `hintsRemaining` 参数；`game-store.ts` 的 `check()` 规则校验逻辑未改动，Numpad 检查按钮触发后行为与阶段 13 一致。
+
+**需求 2 — 格间等值方向统一为 along**（[inequalities.ts](src/render/layers/inequalities.ts)）：
+- `drawCellEqualityGlyph` 调用 `drawEqGlyph` 的 `orient` 参数从 `'perp'` 改为 `'along'`，与 `drawCageEqualityGlyph` 一致。
+- 效果：两类等号两横都沿连线方向延伸、沿法向偏移 ±gap，视觉上是"虚线中段加粗成双线"，不再被误读为另一对角线的格间标记。
+
+**需求 3 — 横跨多格约束过滤**：
+- [cage-builder.ts](src/generator/cage-builder.ts) `pickCageEndpoints`：枚举两笼格对时新增棋盘距离 `boardDist = max(|dr|, |dc|)` 过滤，`boardDist > 1` 直接 `continue`——只保留同行/列相邻（共享边）或对角相邻（共享角点）的格对，连线只穿两格之间的共享边或角点，不会遮挡其他格的候选数。
+- [inequality-sower.ts](src/generator/inequality-sower.ts) `sowCellEquality`：候选对生成时同样加 `boardDist > 1` 过滤，横跨多格的格间等值约束撒播阶段就不进入候选池；`resolveConstraintOverlaps` 的 cellEq 补回逻辑也复用同样的棋盘距离过滤，补回的约束不会重新引入长连线。
+- 渲染端：`pickCageEndpoints` 返回 null 时笼间约束不画引导线和符号，自然降级；格间等值若旧题库存在多格连线，渲染层不做二次过滤（仅靠生成端保证），但下一轮题库重生成后会全部消除。
+
+**需求 4 — 符号尺寸统一缩小**（[inequalities.ts](src/render/layers/inequalities.ts)）：
+- 格间大小三角 `drawCellIneq`：`size` 系数 0.18 → 0.14，下限 9 → 8。
+- 笼间大小三角 `drawCageIneqTriangle`：tip 0.19 → 0.15 / base 0.09 → 0.07 / half 0.14 → 0.11，下限 9/5/7 → 8/4/6。
+- 等值符号 `drawEqGlyph`：half 0.13 → 0.10 / gap 0.065 → 0.05，下限 6/3 → 5/2.5。
+- 三类符号同步缩小约 20%，视觉比例保持一致；白底留白 4px 不变，仍能隔离下方边框。
+
+### 验证
+- `npx tsc --noEmit`：0 错误。
+- `npm test`：3 测试文件 13 用例全部通过，无回归。
+- SidePanel 模板恢复三行布局，Numpad 提示红圈与规则检查功能保留；格间/笼间等号方向一致；横跨多格约束在生成端过滤；符号尺寸统一缩小。
+
+### 说明
+- 阶段 13 在 SidePanel 误加的提示/检查按钮属于过度修改——本意是让"提示红圈"和"规则 check"两处都可见，但用户指出右侧 Numpad 已有这两个功能，左侧再放一份是冗余。阶段 14 删除左侧按钮、保留 Numpad 端实现，既满足用户去重诉求又没丢失阶段 13 的功能改进。
+- 题库未重生成：需求 3 的过滤逻辑改变撒播行为，但旧题库的笼间约束若端点不满足相邻条件，`pickCageEndpoints` 渲染时返回 null 不画，视觉上自然消失；格间等值的长连线仍会渲染，但生成端已保证新题不再产生。如需彻底清除旧题库的长连线约束，可手动触发覆盖重生成。

@@ -4,8 +4,7 @@ import { cellRect } from '../view';
 // 笼标签层：仅显示有和值的笼的和值
 //   隐藏和值笼（sum=null，参与大小/等值约束）不显示任何标签
 //   样式：白底黑字小标签，无描边（白底直接叠在浅色网格上已足够清晰）
-//   位置：白底块左上角与笼左上格的左上角精确对齐（上边/左边与笼边框线重合），
-//   所有标签整齐统一地嵌在笼角上；不再向笼体方向偏移（偏移导致各标签参差不齐）
+//   位置：白底块从笼左上格左上角内移 2px（仍盖住笼边框虚线、不盖宫/格实线边框），整齐统一
 export const cageLabels: RenderLayer = {
   name: 'cage-labels',
   draw(ctx, view, theme) {
@@ -14,9 +13,11 @@ export const cageLabels: RenderLayer = {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
 
-    // 白底块尺寸：固定 18×14，覆盖格子左上角的边框交叉区域
+    // 白底块尺寸：固定 18×14
     const labelW = 18;
     const labelH = 14;
+    // 内移 2px：遮住笼虚线边框，但不会覆盖宫/格边框（2px 留出边框线的位置）
+    const inset = 2;
 
     for (const cage of puzzle.cages) {
       // 隐藏和值笼不显示标签
@@ -30,12 +31,12 @@ export const cageLabels: RenderLayer = {
         }
       }
       const rect = cellRect(view, minIdx);
-      // 白底块与笼边框对齐：原点 = 格子左上角，块边与边框线重合 → 整齐不突兀
+      // 内移 2px：底框仍在笼边框虚线内侧，盖住笼虚线但不盖宫/格实线边框
       ctx.fillStyle = theme.cageLabelBg; // 纯白底
-      ctx.fillRect(rect.x, rect.y, labelW, labelH);
+      ctx.fillRect(rect.x + inset, rect.y + inset, labelW, labelH);
       // 黑字画在白底块中心
       ctx.fillStyle = theme.cageLabelFg;
-      ctx.fillText(`${cage.sum}`, rect.x + labelW / 2, rect.y + labelH / 2 + 0.5);
+      ctx.fillText(`${cage.sum}`, rect.x + inset + labelW / 2, rect.y + inset + labelH / 2 + 0.5);
     }
   },
 };

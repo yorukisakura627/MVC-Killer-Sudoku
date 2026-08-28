@@ -15,10 +15,10 @@ export const candidates: RenderLayer = {
       const rect = cellRect(view, i);
       const sub = view.cellSize / 3;
       const hasValue = cell.value !== 0;
-      // 字号调大（0.18→0.22 / 有值 0.14→0.18），下限 10，保证可读性
+      // 字号略微调小（避免被左上角和值标签遮挡）：0.18→0.16 / 有值 0.14→0.12，下限 9
       const fontPx = Math.max(
-        10,
-        Math.floor(view.cellSize * (hasValue ? 0.18 : 0.22)),
+        9,
+        Math.floor(view.cellSize * (hasValue ? 0.12 : 0.16)),
       );
       ctx.font = `${fontPx}px sans-serif`;
       // 有值时候选仍需避让中央大数字，用半透明区分

@@ -57,7 +57,7 @@ export const inequalities: RenderLayer = {
 };
 
 // 格间大小符号：在两格共享边中央画实心三角，箭头指向"较小"一侧
-//   size 随格子尺寸缩放，最小 9，保证视觉醒目
+//   size 随格子尺寸缩放，最小 8（统一调小一档：0.18→0.14，min 9→8）
 function drawCellIneq(ctx: CanvasRenderingContext2D, view: View, ii: CellInequality) {
   const ra = Math.floor(ii.a / 9);
   const ca = ii.a % 9;
@@ -65,7 +65,7 @@ function drawCellIneq(ctx: CanvasRenderingContext2D, view: View, ii: CellInequal
   const cb = ii.b % 9;
   const aRect = cellRect(view, ii.a);
   const bRect = cellRect(view, ii.b);
-  const size = Math.max(9, Math.floor(view.cellSize * 0.18));
+  const size = Math.max(8, Math.floor(view.cellSize * 0.14));
   // 同行 → 垂直边；同列 → 水平边
   if (ra === rb) {
     // 横向相邻，符号在中间垂直边上
@@ -117,7 +117,9 @@ function drawCageIneqGuide(
 }
 
 // 笼间大小符号：在引导线中点画空心三角，箭头指向"较小和值"笼
-//   若端点仍与格间约束冲突（无法换端点），则沿引导线法向偏移三角，避免完全重合
+//   白底无边框：白底隔离下方的格边框/网格线，使橙色空心三角清晰可辨
+//   尺寸统一调小一档（tip 0.19→0.15，base 0.09→0.07，half 0.14→0.11），
+//     与格间三角和等号保持视觉比例；冲突时仍做法向偏移错开
 function drawCageIneqTriangle(
   ctx: CanvasRenderingContext2D,
   view: View,
@@ -142,15 +144,14 @@ function drawCageIneqTriangle(
   const len = Math.hypot(dx, dy) || 1;
   const ux = dx / len;
   const uy = dy / len;
-  // 三角尺寸随格子大小缩放，最小值保证醒目
-  const tip = Math.max(12, view.cellSize * 0.22);
-  const base = Math.max(6, view.cellSize * 0.11);
-  const half = Math.max(9, view.cellSize * 0.16);
+  // 三角尺寸：统一调小一档（tip 0.15 / base 0.07 / half 0.11）
+  const tip = Math.max(8, view.cellSize * 0.15);
+  const base = Math.max(4, view.cellSize * 0.07);
+  const half = Math.max(6, view.cellSize * 0.11);
   // 中点；冲突时做法向偏移，让三角错开蓝色箭头
   let mx = (ax + bx) / 2;
   let my = (ay + by) / 2;
   if (ep.conflict) {
-    // 法向（垂直引导线）偏移 1/2 cell，相当于把三角移到边旁
     const nx = -uy;
     const ny = ux;
     const off = view.cellSize * 0.35;
@@ -166,6 +167,16 @@ function drawCageIneqTriangle(
   // 垂直于方向的基线
   const px = -uy;
   const py = ux;
+  // 白底块：在三角周围画一个足够大的白色矩形，隔离下方边框线
+  const halfW = tip + 4;
+  const halfH = half + 4;
+  ctx.save();
+  ctx.translate(mx, my);
+  ctx.rotate(Math.atan2(uy, ux));
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(-halfW, -halfH, halfW * 2, halfH * 2);
+  // 恢复坐标系后再描空心三角（保持原始全局坐标，线宽不变）
+  ctx.restore();
   ctx.beginPath();
   ctx.moveTo(tipX, tipY);
   ctx.lineTo(baseX + px * half, baseY + py * half);
@@ -176,11 +187,12 @@ function drawCageIneqTriangle(
 
 // 等值符号 "="：在点 (x,y) 处画带白底的两横
 //   (ux,uy) 是连线方向单位向量；坐标系旋转到连线方向后绘制：
-//     - orient='along'：两横与虚线同向（沿连线延伸，法向偏移 ±gap）——笼间等值用，
-//       视觉上是"虚线中段加粗成双线"，不会被误读为另一条对角线的格间标记（需求2）
-//     - orient='perp'：两横垂直于连线（沿法向延伸，连线方向偏移 ±gap）——格间等值用
+//     - orient='along'：两横与虚线同向（沿连线延伸，法向偏移 ±gap）
+//       视觉上是"虚线中段加粗成双线"，不会被误读为另一条对角线的格间标记
+//     - orient='perp'：两横垂直于连线（沿法向延伸，连线方向偏移 ±gap）——保留备用，未使用
 //   白底块先画（纯白填充、无描边），隔离下方的笼边框/虚线，符号再叠上；
-//   等号两横加大（half/gap 均放大），提升辨识度
+//   等号两横统一调小一档（half 0.13→0.10、gap 0.065→0.05，下限 6→5 / 3→2.5），
+//     与调小后的格间/笼间三角保持视觉比例
 function drawEqGlyph(
   ctx: CanvasRenderingContext2D,
   x: number,
@@ -191,8 +203,8 @@ function drawEqGlyph(
   orient: 'along' | 'perp',
   color: string,
 ) {
-  const half = Math.max(6, cellSize * 0.13); // "=" 单横的半长（调大，提升可读性）
-  const gap = Math.max(3, cellSize * 0.065); // 两横间距的一半（随之放大保持比例）
+  const half = Math.max(5, cellSize * 0.10); // "=" 单横的半长（统一调小一档）
+  const gap = Math.max(2.5, cellSize * 0.05); // 两横间距的一半（随之缩小保持比例）
   ctx.save();
   // 平移到符号中心并旋转，使局部 x 轴与连线方向重合，绘制逻辑简化为水平/垂直
   ctx.translate(x, y);
@@ -244,6 +256,7 @@ function drawCellEqualityGuides(
 }
 
 // 格间等值符号：在连线中点画 "="（深蓝，与格间大小同族）
+//   两横与连线同向（'along'，需求2）：与笼间等值统一方向，避免误读为另一对角线的格间标记
 function drawCellEqualityGlyph(
   ctx: CanvasRenderingContext2D,
   view: View,
@@ -260,7 +273,7 @@ function drawCellEqualityGlyph(
   ctx.save();
   drawEqGlyph(
     ctx, (ax + bx) / 2, (ay + by) / 2, (bx - ax) / len, (by - ay) / len,
-    view.cellSize, 'perp', theme.cellEq,
+    view.cellSize, 'along', theme.cellEq,
   );
   ctx.restore();
 }

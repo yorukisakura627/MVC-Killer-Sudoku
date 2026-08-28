@@ -285,15 +285,132 @@ export class GameStore {
   }
 
   // === 检查 ===
-  //   与 solution 比对，标红冲突格 2 秒
+  //   规则校验（而非与答案对比）：仅用当前已知输入，按数独规则标红冲突格 2 秒
+  //   检测维度：①行列宫重复 ②笼和(笼内值全填且和≠sum) ③格间大小 ④格间等值
+  //   笼间大小/等值只在两侧笼和值确定（笼内值全填或 sum≠null）时校验；
+  //   笼内未填值 → 该笼参与的笼间大小/等值暂不校验（信息不足）。
+  //   给定数也参与冲突判定（若用户填错与给定重复也应标红）。
   check(): void {
-    let anyConflict = false;
-    for (let i = 0; i < 81; i++) {
-      const cell = this.cells[i];
-      const conflict = cell.value !== 0 && cell.value !== this.puzzle.solution[i];
-      cell.conflict = conflict;
-      if (conflict) anyConflict = true;
+    // 先全部清除
+    for (const c of this.cells) c.conflict = false;
+    const mark = (idx: number) => {
+      this.cells[idx].conflict = true;
+    };
+
+    // ① 行列宫重复：对每一行/列/宫，按值分组找重复
+    for (let k = 0; k < 9; k++) {
+      const byVRow = new Map<number, number[]>();
+      const byVCol = new Map<number, number[]>();
+      for (let j = 0; j < 9; j++) {
+        const ri = k * 9 + j;
+        const rv = this.cells[ri].value;
+        if (rv !== 0) {
+          const arr = byVRow.get(rv) ?? [];
+          arr.push(ri);
+          byVRow.set(rv, arr);
+        }
+        const ci = j * 9 + k;
+        const cv = this.cells[ci].value;
+        if (cv !== 0) {
+          const arr = byVCol.get(cv) ?? [];
+          arr.push(ci);
+          byVCol.set(cv, arr);
+        }
+      }
+      for (const arr of byVRow.values()) if (arr.length > 1) arr.forEach(mark);
+      for (const arr of byVCol.values()) if (arr.length > 1) arr.forEach(mark);
     }
+    for (let br = 0; br < 3; br++) {
+      for (let bc = 0; bc < 3; bc++) {
+        const byV = new Map<number, number[]>();
+        for (let i = 0; i < 3; i++) {
+          for (let j = 0; j < 3; j++) {
+            const idx = (br * 3 + i) * 9 + (bc * 3 + j);
+            const v = this.cells[idx].value;
+            if (v !== 0) {
+              const arr = byV.get(v) ?? [];
+              arr.push(idx);
+              byV.set(v, arr);
+            }
+          }
+        }
+        for (const arr of byV.values()) if (arr.length > 1) arr.forEach(mark);
+      }
+    }
+
+    // ② 笼和校验：笼内无空值且都不为 0 时，检查和是否等于 cage.sum
+    for (const cage of this.puzzle.cages) {
+      if (cage.sum === null) continue; // 隐藏和值笼不直接校验（通过笼间约束部分校验）
+      let cageSum = 0;
+      let filled = true;
+      for (const idx of cage.cells) {
+        const v = this.cells[idx].value;
+        if (v === 0) { filled = false; break; }
+        cageSum += v;
+      }
+      if (!filled) continue;
+      if (cageSum !== cage.sum) {
+        for (const idx of cage.cells) mark(idx);
+      }
+    }
+
+    // ③ 格间大小约束：两格都有确定值时校验 rel 是否成立
+    for (const ii of this.puzzle.cellIneq) {
+      const va = this.cells[ii.a].value;
+      const vb = this.cells[ii.b].value;
+      if (va === 0 || vb === 0) continue;
+      const ok = ii.rel === '>' ? va > vb : va < vb;
+      if (!ok) { mark(ii.a); mark(ii.b); }
+    }
+
+    // ④ 格间等值约束：两格都有确定值时校验是否相等
+    for (const eq of this.puzzle.cellEq) {
+      const va = this.cells[eq.a].value;
+      const vb = this.cells[eq.b].value;
+      if (va === 0 || vb === 0) continue;
+      if (va !== vb) { mark(eq.a); mark(eq.b); }
+    }
+
+    // ⑤ 笼间大小约束：两笼都能确定和值时校验 rel 是否成立
+    //   确定方式：sum 已知 或 笼内值全填（求和）；笼内有候选不算确定。
+    const evaluateCageSum = (cage: { id: number; sum: number | null; cells: number[] }): number | null => {
+      if (cage.sum !== null) return cage.sum;
+      let s = 0;
+      for (const idx of cage.cells) {
+        const v = this.cells[idx].value;
+        if (v === 0) return null;
+        s += v;
+      }
+      return s;
+    };
+    const cageById = new Map(this.puzzle.cages.map((c) => [c.id, c]));
+    for (const ci of this.puzzle.cageIneq) {
+      const ca = cageById.get(ci.a);
+      const cb = cageById.get(ci.b);
+      if (!ca || !cb) continue;
+      const sa = evaluateCageSum(ca);
+      const sb = evaluateCageSum(cb);
+      if (sa === null || sb === null) continue;
+      const ok = ci.rel === '>' ? sa > sb : sa < sb;
+      if (ok) continue;
+      for (const idx of ca.cells) mark(idx);
+      for (const idx of cb.cells) mark(idx);
+    }
+
+    // ⑥ 笼间等值约束：两笼和值都确定时校验是否相等
+    for (const ce of this.puzzle.cageEq) {
+      const ca = cageById.get(ce.a);
+      const cb = cageById.get(ce.b);
+      if (!ca || !cb) continue;
+      const sa = evaluateCageSum(ca);
+      const sb = evaluateCageSum(cb);
+      if (sa === null || sb === null) continue;
+      if (sa === sb) continue;
+      for (const idx of ca.cells) mark(idx);
+      for (const idx of cb.cells) mark(idx);
+    }
+
+    const anyConflict = this.cells.some((c) => c.conflict);
     if (anyConflict) {
       this.emit();
       setTimeout(() => {

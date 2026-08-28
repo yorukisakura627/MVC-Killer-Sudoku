@@ -2,7 +2,7 @@ import type { Puzzle } from '@/types/puzzle';
 import type { Difficulty } from '@/types/puzzle';
 import { randomFullGrid, mulberry32 } from './grid-gen';
 import { layCages, markHiddenCages, cloneCages } from './cage-builder';
-import { sowCellIneq, sowCageIneq, sowCellEquality, sowCageEquality } from './inequality-sower';
+import { sowCellIneq, sowCageIneq, sowCellEquality, sowCageEquality, resolveConstraintOverlaps } from './inequality-sower';
 import { removeCluesToTarget, clonePuzzle } from './clue-remover';
 import { DIFF_PARAMS, computeRating, ratingInBand, levelAllowed } from './difficulty';
 import { hasUniqueSolution } from '@/solver/backtrack';
@@ -64,19 +64,31 @@ export function generatePuzzle(opts: GenOptions): Puzzle | null {
     const cellEq = sowCellEquality(sol, cellEqCount, rng, cellIneq, cageIneq, cages);
     const cageEq = sowCageEquality(cages, sol, cageEqCount, rng, cellIneq, cageIneq, cellEq);
 
+    // 重叠回退 + 补回（需求1）：对四类约束 + 和值标签做全量间距检查，
+    //   优先级：标签 > 笼间等值 > 格间等值 > 笼间大小 > 格间大小；删除低优先级后
+    //   同类型从剩余候选里补回原目标数；补不回来则该题约束数量略少于目标，
+    //   若唯一性/难度/评分不达标，外层 for 循环会自动换新题重试。
+    const resolved = resolveConstraintOverlaps(cages, sol, cellIneq, cageIneq, cellEq, cageEq, rng);
+    const cellIneqFinal = resolved.cellIneq;
+    const cageIneqFinal = resolved.cageIneq;
+    const cellEqFinal = resolved.cellEq;
+    const cageEqFinal = resolved.cageEq;
+
     // 初始谜题：所有 81 格作为给定
     const allGivens = new Map<number, number>();
     for (let i = 0; i < 81; i++) allGivens.set(i, sol[i]);
 
+    // 注意：此处必须用 Final 版本（resolveConstraintOverlaps 处理后），
+    //   否则重叠回退/补回逻辑完全不生效，生成的题目仍会有大量符号重叠。
     let p: Puzzle = {
       id: `${diff}-${Date.now()}-${attempt}`,
       difficulty: diff,
       solution: sol.slice(),
       cages: cloneCages(cages),
-      cellIneq: cellIneq.slice(),
-      cageIneq: cageIneq.slice(),
-      cellEq: cellEq.slice(),
-      cageEq: cageEq.slice(),
+      cellIneq: cellIneqFinal.slice(),
+      cageIneq: cageIneqFinal.slice(),
+      cellEq: cellEqFinal.slice(),
+      cageEq: cageEqFinal.slice(),
       givens: allGivens,
       rating: 0,
       techniqueMax: '',
