@@ -1,8 +1,8 @@
 import type { Cage } from './cage';
-import type { CellInequality, CageInequality, Rel } from './constraint';
+import type { CellInequality, CageInequality, CellEquality, CageEquality, Rel } from './constraint';
 import type { CellIdx } from './grid';
 
-export type Difficulty = 'easy' | 'normal' | 'hard';
+export type Difficulty = 'easy' | 'normal' | 'hard' | 'expert';
 
 // 笼的纯数据形态，用于题库 JSON 序列化（不含运行时方法）
 export interface CageJson {
@@ -18,6 +18,8 @@ export interface PuzzleJson {
   cages: CageJson[];
   cellIneq: { a: CellIdx; b: CellIdx; rel: Rel }[];
   cageIneq: { a: number; b: number; rel: Rel }[]; // 仅连接 sum=null 的笼
+  cellEq?: { a: CellIdx; b: CellIdx }[]; // 格间等值约束（可选，兼容旧题库）
+  cageEq?: { a: number; b: number }[]; // 笼间等值约束（可选，兼容旧题库）
   givens: Record<number, number>; // CellIdx → 给定值
   rating: number; // 难度评分
   techniqueMax: string; // 用到的最高技巧
@@ -32,6 +34,8 @@ export interface Puzzle {
   cages: Cage[];
   cellIneq: CellInequality[];
   cageIneq: CageInequality[];
+  cellEq: CellEquality[];
+  cageEq: CageEquality[];
   givens: Map<CellIdx, number>;
   rating: number;
   techniqueMax: string;
@@ -52,6 +56,8 @@ export function puzzleFromJson(json: PuzzleJson): Puzzle {
     cages,
     cellIneq: json.cellIneq.map((c) => ({ ...c })),
     cageIneq: json.cageIneq.map((c) => ({ ...c })),
+    cellEq: (json.cellEq ?? []).map((c) => ({ ...c })),
+    cageEq: (json.cageEq ?? []).map((c) => ({ ...c })),
     givens: new Map(Object.entries(json.givens).map(([k, v]) => [Number(k), v])),
     rating: json.rating,
     techniqueMax: json.techniqueMax,
@@ -70,6 +76,8 @@ export function puzzleToJson(p: Puzzle): PuzzleJson {
     cages: p.cages.map((c) => ({ cells: c.cells.slice(), sum: c.sum })),
     cellIneq: p.cellIneq.map((c) => ({ ...c })),
     cageIneq: p.cageIneq.map((c) => ({ ...c })),
+    cellEq: p.cellEq.map((c) => ({ ...c })),
+    cageEq: p.cageEq.map((c) => ({ ...c })),
     givens: givensObj,
     rating: p.rating,
     techniqueMax: p.techniqueMax,

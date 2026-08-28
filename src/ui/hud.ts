@@ -19,6 +19,8 @@ export class Hud {
   private timeEl!: HTMLSpanElement;
   private progressEl!: HTMLSpanElement;
   private reasonEl!: HTMLDivElement;
+  private hintBtnEl!: HTMLButtonElement;
+  private hintCountEl!: HTMLSpanElement;
   private diffBtns: Record<Difficulty, HTMLButtonElement> = {} as any;
 
   constructor(store: GameStore, cb: HudCallbacks) {
@@ -46,7 +48,10 @@ export class Hud {
         <button data-el="pause">暂停</button>
       </div>
       <div class="hud-group">
-        <button data-el="hint" title="提示 (H)">提示</button>
+        <button data-el="hint" title="提示 (H)" class="hint-btn">
+          提示
+          <span class="hint-count" data-el="hintCount">0</span>
+        </button>
         <button data-el="check" class="danger" title="检查 (T)">检查</button>
         <button data-el="newGame">新题</button>
       </div>
@@ -59,6 +64,8 @@ export class Hud {
     this.timeEl = q('[data-el="time"]') as HTMLSpanElement;
     this.progressEl = q('[data-el="progress"]') as HTMLSpanElement;
     this.reasonEl = q('[data-el="reason"]') as HTMLDivElement;
+    this.hintBtnEl = q('[data-el="hint"]') as HTMLButtonElement;
+    this.hintCountEl = q('[data-el="hintCount"]') as HTMLSpanElement;
     for (const d of ['easy', 'normal', 'hard'] as Difficulty[]) {
       this.diffBtns[d] = q(`[data-diff="${d}"]`) as HTMLButtonElement;
     }
@@ -95,6 +102,11 @@ export class Hud {
   update(store: GameStore): void {
     this.timeEl.textContent = formatTime(store.elapsedMs);
     this.reasonEl.textContent = store.hintReason || '';
+    // 提示按钮：右上角红圈显示剩余次数；用完时隐藏红圈避免显示 0
+    const remaining = store.hintsRemaining;
+    this.hintCountEl.textContent = String(remaining);
+    this.hintCountEl.style.display = remaining === 0 ? 'none' : '';
+    this.hintBtnEl.disabled = remaining <= 0;
     // 高亮当前难度按钮
     for (const d of ['easy', 'normal', 'hard'] as Difficulty[]) {
       this.diffBtns[d].classList.toggle('active', d === store.getDifficulty());

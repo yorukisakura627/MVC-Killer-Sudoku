@@ -57,6 +57,8 @@ export function makeSamplePuzzle(): Puzzle {
     cages,
     cellIneq: [], // 样本不带大小约束
     cageIneq: [],
+    cellEq: [], // 样本不带等值约束
+    cageEq: [],
     givens,
     rating: 0,
     techniqueMax: '',

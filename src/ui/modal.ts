@@ -70,8 +70,13 @@ export function showErrorOverlay(message: string, onRetry?: () => void): void {
   overlay.querySelector('[data-act="close"]')!.addEventListener('click', () => overlay.remove());
 }
 
+// 四档难度标签（弹窗与题库导航共用）
+export const DIFF_LABELS: Record<Difficulty, string> = {
+  easy: '简单', normal: '普通', hard: '困难', expert: '专家',
+};
+
 function diffLabel(diff: string): string {
-  return diff === 'easy' ? '简单' : diff === 'normal' ? '普通' : '困难';
+  return DIFF_LABELS[diff as Difficulty] ?? diff;
 }
 
 // 暂停遮罩：覆盖数独表格本体（不覆盖整页），用表格底色
@@ -102,25 +107,36 @@ export function showHelpOverlay(): void {
   overlay.className = 'overlay';
   overlay.innerHTML = `
     <div class="overlay-content help-content">
-      <h2>杀手数独 · 大小约束</h2>
-      <p class="help-copy">© 2026 Killer Sudoku with Inequalities · 版权所有</p>
+      <h2>杀手数独 · 大小与等值约束</h2>
+      <p class="help-copy">© 2026 <a href="https://github.com/yorukisakura627" target="_blank" rel="noopener noreferrer" style="color:#1e40af;text-decoration:underline">sakura_yoruki</a> · Killer Sudoku with Inequalities · 版权所有</p>
       <h3>项目简介</h3>
-      <p>一款融合 Killer 笼和值与相邻格/笼大小约束的数独变体。每局保证唯一解且可纯逻辑推导，分简单/普通/困难三档难度，难度越高可用信息越少。</p>
+      <p>一款融合 Killer 笼和值与相邻格/笼大小、等值约束的数独变体。每局保证唯一解且可纯逻辑推导，分简单/普通/困难/专家四档难度，难度越高可用信息越少。</p>
       <h3>玩法</h3>
       <ul>
         <li>在 9×9 格内填入 1~9，使每行、每列、每个 3×3 宫不重复。</li>
-        <li>Killer 笼：虚线框内数字之和等于左上角标注的和值，且笼内数字不重复。</li>
-        <li>格间大小约束：相邻格间的小三角（＞/＜）表示两侧数字大小关系。</li>
-        <li>笼间大小约束：参与大小关系的笼不显示和值，需通过 45 法则或邻接推理得到。</li>
+        <li>Killer 笼：虚线框内数字之和等于左上角<span style="background:#fff;color:#111827;font-weight:bold;padding:0 3px;border-radius:2px">白底黑字</span>标注的和值，且笼内数字不重复。</li>
+        <li>本作有两类额外约束，<b>看颜色分归属、看形状分含义</b>：
+          <ul>
+            <li><span style="color:#1e3a8a;font-weight:bold">深蓝色 = 格与格之间</span>：相邻两格共享边上的<span style="color:#1e3a8a;font-weight:bold">实心小三角（▶/◀）</span>表示大小关系，<b>尖角指向较小的一格</b>；两格间蓝色虚线连线中点的<span style="color:#1e3a8a;font-weight:bold">蓝色 "="</span> 表示两格填<b>相同数字</b>（两格必不同行/列/宫）。</li>
+            <li><span style="color:#f59e0b;font-weight:bold">金色 = 笼与笼之间</span>：两笼间金色虚线上的<span style="color:#f59e0b;font-weight:bold">空心三角</span>表示两笼和值的大小关系，<b>尖角指向较小和值的笼</b>；虚线上的<span style="color:#f59e0b;font-weight:bold">金色 "="</span> 表示两笼<b>和值相等</b>。</li>
+          </ul>
+        </li>
+        <li>参与笼间约束（大小或等值）的笼<b>不显示和值</b>，需通过 45 法则或邻接关系推理；其余笼左上角都标有和值。</li>
         <li>每个格子必填且仅填一个 1~9 的数字。</li>
+      </ul>
+      <h3>符号速查</h3>
+      <ul>
+        <li>深蓝实心三角（相邻格边上）：格间大小；金色空心三角（笼间虚线上）：笼间大小。尖角都指向<b>较小</b>一侧。</li>
+        <li>蓝色 "="（两格连线中点）：两格数字相同；金色 "="（两笼间虚线上）：两笼和值相等。</li>
+        <li>一句话记忆：<b>深蓝看格子，金色看笼子；三角比大小，等号表相同。</b></li>
       </ul>
       <h3>功能介绍</h3>
       <ul>
         <li>鼠标点击选格、按住拖动多选批量填数。</li>
         <li>候选模式：在已填数字的格子输入不同数字会转为候选；候选可逐个标记/删除。</li>
         <li>数字键盘：1-9 填数、擦除、撤销、重做（重做本题）、候选模式切换。</li>
-        <li>提示（简单5/普通3/困难1 次）：随机填一个空格的正确答案，可被更改，撤销不恢复次数。</li>
-        <li>检查：高亮当前冲突的格子。</li>
+        <li>提示（简单5/普通4/困难3/专家2 次）：随机填一个空格的正确答案，可被更改，撤销不恢复次数；按钮右上角红圈为剩余次数。</li>
+        <li>检查：按数独规则校验当前所有已填数字（行列宫重复、笼和错误、大小/等值关系违反），标红违反的格子 2 秒。（未填值或约束两侧有空格时暂不判定。）</li>
         <li>暂停：空格键或暂停按钮，遮罩表格防偷看。</li>
         <li>题目选择弹窗：按难度浏览全部题目并跳转。</li>
       </ul>
@@ -136,12 +152,12 @@ export function showHelpOverlay(): void {
 export function showPuzzlePicker(onPick: (diff: Difficulty, idx: number) => void): void {
   const overlay = document.createElement('div');
   overlay.className = 'overlay';
-  const diffs: Difficulty[] = ['easy', 'normal', 'hard'];
-  const labels: Record<Difficulty, string> = { easy: '简单', normal: '普通', hard: '困难' };
+  // 四档难度按顺序展示，全局序号跨难度连续
+  const diffs: Difficulty[] = ['easy', 'normal', 'hard', 'expert'];
   let html = '<div class="overlay-content picker-content"><h2>题目选择</h2>';
   for (const d of diffs) {
     const list = getPuzzleList(d);
-    html += `<div class="picker-diff"><div class="picker-diff-label">${labels[d]}（${list.length} 题）</div><div class="picker-grid">`;
+    html += `<div class="picker-diff"><div class="picker-diff-label">${DIFF_LABELS[d]}（${list.length} 题）</div><div class="picker-grid">`;
     list.forEach((_: Puzzle, i: number) => {
       const no = formatPuzzleNo(getGlobalNumber(d, i));
       html += `<button class="picker-btn" data-diff="${d}" data-idx="${i}">${no}</button>`;

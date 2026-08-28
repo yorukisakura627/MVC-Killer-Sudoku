@@ -13,6 +13,7 @@ export class Numpad {
   private undoBtn!: HTMLButtonElement;
   private resetBtn!: HTMLButtonElement;
   private hintBtn!: HTMLButtonElement;
+  private hintCountEl!: HTMLSpanElement;
   // 当前是否候选模式：决定数字按钮发 value 还是 toggleCand
   private candidateMode = false;
 
@@ -25,6 +26,7 @@ export class Numpad {
     this.undoBtn = this.el.querySelector('[data-act="undo"]') as HTMLButtonElement;
     this.resetBtn = this.el.querySelector('[data-act="reset"]') as HTMLButtonElement;
     this.hintBtn = this.el.querySelector('[data-act="hint"]') as HTMLButtonElement;
+    this.hintCountEl = this.el.querySelector('[data-act="hint"] [data-el="hintCount"]') as HTMLSpanElement;
     this.bindEvents();
   }
 
@@ -38,7 +40,10 @@ export class Numpad {
       <button data-act="value" data-val="1">1</button>
       <button data-act="value" data-val="2">2</button>
       <button data-act="value" data-val="3">3</button>
-      <button data-act="hint" title="提示 (H)">提示</button>
+      <button data-act="hint" title="提示 (H)" class="hint-btn">
+        提示
+        <span class="hint-count" data-el="hintCount">0</span>
+      </button>
       <button data-act="value" data-val="4">4</button>
       <button data-act="value" data-val="5">5</button>
       <button data-act="value" data-val="6">6</button>
@@ -78,12 +83,17 @@ export class Numpad {
   }
 
   // 由 main.ts 的 subscribe 回调调用，同步按钮禁用态与候选模式高亮
-  //   canReset：有用户输入才激活"重做"；canHint：有剩余提示才激活"提示"
-  update(opts: { candidateMode: boolean; canUndo: boolean; canReset: boolean; canHint: boolean; paused: boolean }): void {
+  //   canReset：有用户输入才激活"重做"；canHint：有剩余提示才激活"提示"；
+  //   hintsRemaining：右上角红圈显示剩余次数；用完隐藏红圈（0 无信息量）
+  update(opts: { candidateMode: boolean; canUndo: boolean; canReset: boolean; canHint: boolean; hintsRemaining: number; paused: boolean }): void {
     this.candidateMode = opts.candidateMode;
     this.candBtn.classList.toggle('active', opts.candidateMode);
     this.undoBtn.disabled = !opts.canUndo;
     this.resetBtn.disabled = !opts.canReset;
     this.hintBtn.disabled = !opts.canHint;
+    if (this.hintCountEl) {
+      this.hintCountEl.textContent = String(opts.hintsRemaining);
+      this.hintCountEl.style.display = opts.hintsRemaining === 0 ? 'none' : '';
+    }
   }
 }

@@ -21,6 +21,21 @@ export interface CageInequality {
   rel: Rel;
 }
 
+// 格间等值约束：两格必须填相同数字
+//   注意：两格不能同行/列/宫（否则与"行列宫不重复"规则矛盾导致无解），
+//   视觉上用跨格连线连接，等号画在连线中点
+export interface CellEquality {
+  a: CellIdx;
+  b: CellIdx;
+}
+
+// 笼间等值约束：两笼和值相等
+//   仅当两笼 sum === null（隐藏和值笼）时才有信息量，否则直接读出和值即可
+export interface CageEquality {
+  a: number; // Cage.id
+  b: number; // Cage.id
+}
+
 // 翻转方向：a > b 等价于 b < a，便于求解器统一处理
 export function flipRel(rel: Rel): Rel {
   return rel === '>' ? '<' : '>';

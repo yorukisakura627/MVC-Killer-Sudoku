@@ -28,8 +28,9 @@ function parseArgs(): CliArgs {
   let diff = 'easy';
   let n = 10;
   let seedBase = Date.now();
-  let maxTries = 20;
-  let timeoutMs = 30000;
+  // 熔断默认值调高（需求7）：困难/专家命中率低，30s/20次 阈值过小易大面积熔断
+  let maxTries = 40;
+  let timeoutMs = 60000;
   let append = false;
   // 用 split('=') 取值，避免硬编码前缀长度出错（如 '--n=' 切片索引曾误写为 3 导致 NaN）
   for (const a of argv) {
@@ -46,8 +47,8 @@ function parseArgs(): CliArgs {
       case '--timeoutMs': timeoutMs = Number(val); break;
     }
   }
-  if (!['easy', 'normal', 'hard'].includes(diff)) {
-    throw new Error(`未知难度: ${diff}（应为 easy/normal/hard）`);
+  if (!['easy', 'normal', 'hard', 'expert'].includes(diff)) {
+    throw new Error(`未知难度: ${diff}（应为 easy/normal/hard/expert）`);
   }
   if (n <= 0) throw new Error('--n 必须 > 0');
   return { diff: diff as Difficulty, n, seedBase, maxTries, timeoutMs, append };

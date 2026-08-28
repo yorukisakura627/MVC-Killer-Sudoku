@@ -3,7 +3,7 @@ import { cellRect } from '../view';
 
 // 候选数层：每格内 3×3 小字布局，1~9 各占一宫
 //   需求2 后：有值格子也可保留候选（输入不同数字转候选），故移除"有值不画"限制
-//   有值时候选字号更小且半透明，避免与中央大数字冲突；大数字层在上会覆盖中央候选
+//   样式改进：候选位置向格中心收缩 30%（远离笼和值角标），字号调大、颜色调深
 export const candidates: RenderLayer = {
   name: 'candidates',
   draw(ctx, view, theme) {
@@ -15,19 +15,26 @@ export const candidates: RenderLayer = {
       const rect = cellRect(view, i);
       const sub = view.cellSize / 3;
       const hasValue = cell.value !== 0;
-      // 有值时候选更小、更淡，置于四角避开中央大数字
+      // 字号略微调小（避免被左上角和值标签遮挡）：0.18→0.16 / 有值 0.14→0.12，下限 9
       const fontPx = Math.max(
-        8,
-        Math.floor(view.cellSize * (hasValue ? 0.14 : 0.18)),
+        9,
+        Math.floor(view.cellSize * (hasValue ? 0.12 : 0.16)),
       );
       ctx.font = `${fontPx}px sans-serif`;
-      ctx.fillStyle = hasValue ? theme.candidate + '99' : theme.candidate;
+      // 有值时候选仍需避让中央大数字，用半透明区分
+      ctx.fillStyle = hasValue ? theme.candidate + 'b3' : theme.candidate;
+      // 格中心坐标：候选整体向中心收缩，避免压住左上角笼和值标签
+      const cx = rect.x + view.cellSize / 2;
+      const cy = rect.y + view.cellSize / 2;
       for (let v = 1; v <= 9; v++) {
         if (!cell.userCands.has(v)) continue;
         const sr = Math.floor((v - 1) / 3);
         const sc = (v - 1) % 3;
-        const x = rect.x + sub * (sc + 0.5);
-        const y = rect.y + sub * (sr + 0.5);
+        // 原位置为 3×3 宫中心，向格中心收缩 30%（0.7 倍：进一步远离左上角和值标签）
+        const gx = rect.x + sub * (sc + 0.5);
+        const gy = rect.y + sub * (sr + 0.5);
+        const x = cx + (gx - cx) * 0.7;
+        const y = cy + (gy - cy) * 0.7;
         ctx.fillText(String(v), x, y + 0.5);
       }
     }

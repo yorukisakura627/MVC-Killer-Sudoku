@@ -45,6 +45,7 @@ export const HARD_TECHNIQUES: Technique[] = [...NORMAL_TECHNIQUES, new XWing()];
 export const DEFAULT_TECHNIQUES = HARD_TECHNIQUES;
 
 // 按难度选技巧列表（生成器评分时使用对应难度的技巧）
+//   专家档与困难档共用技巧集：区分度来自给定数与约束密度，而非更高技巧
 export function techniquesFor(diff: Difficulty): Technique[] {
   switch (diff) {
     case 'easy':
@@ -52,6 +53,7 @@ export function techniquesFor(diff: Difficulty): Technique[] {
     case 'normal':
       return NORMAL_TECHNIQUES;
     case 'hard':
+    case 'expert':
       return HARD_TECHNIQUES;
   }
 }
@@ -74,7 +76,7 @@ export function solveLogical(
   }
   const ctx: TechCtx = { puzzle: p, cagesById, cageOfCell, resolved: new Set() };
 
-  const propagator = new Propagator(buildConstraintsFor(workCages, p.cellIneq, p.cageIneq));
+  const propagator = new Propagator(buildConstraintsFor(workCages, p.cellIneq, p.cageIneq, p.cellEq, p.cageEq));
 
   const steps: Step[] = [];
   let maxLevel = 0;
@@ -149,6 +151,6 @@ export function nextStep(
 export function propagateGrid(p: Puzzle, grid: CandidateGrid): boolean {
   // 用克隆 cages 让传播不污染原 puzzle
   const workCages = p.cages.map((c) => ({ id: c.id, cells: c.cells.slice(), sum: c.sum }));
-  const propagator = new Propagator(buildConstraintsFor(workCages, p.cellIneq, p.cageIneq));
+  const propagator = new Propagator(buildConstraintsFor(workCages, p.cellIneq, p.cageIneq, p.cellEq, p.cageEq));
   return propagator.run(grid);
 }

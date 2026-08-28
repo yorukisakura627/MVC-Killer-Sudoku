@@ -90,6 +90,30 @@
       .hud button.danger { background: #dc2626; }
       .hud .difficulty-group button { background: #1f2937; }
       .hud .difficulty-group button.active { background: #f59e0b; color: #1f2937; font-weight: 600; }
+      /* 提示按钮+右上角红圈徽标：Hud（已废弃死代码） / Numpad 两处统一
+         SidePanel 不再重复提示按钮（避免功能冗余），由 Numpad 端统一提供 */
+      .hud button.hint-btn,
+      .numpad button.hint-btn {
+        position: relative;
+      }
+      .hud button.hint-btn .hint-count,
+      .numpad .hint-count {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        min-width: 18px;
+        height: 18px;
+        padding: 0 4px;
+        box-sizing: border-box;
+        border-radius: 9px;
+        background: #dc2626;
+        color: #ffffff;
+        font-size: 11px;
+        font-weight: 700;
+        line-height: 18px;
+        text-align: center;
+        box-shadow: 0 0 0 1.5px #374151;
+      }
       .hud .time-display {
         font-variant-numeric: tabular-nums;
         font-weight: 600;

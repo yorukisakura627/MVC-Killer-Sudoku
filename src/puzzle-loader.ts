@@ -119,17 +119,17 @@ export function getRandomPuzzle(diff: Difficulty, currentId: string): Puzzle | n
 export async function loadAllPuzzleSets(
   onProgress?: (p: LoadProgress) => void,
 ): Promise<void> {
-  const diffs: Difficulty[] = ['easy', 'normal', 'hard'];
+  const diffs: Difficulty[] = ['easy', 'normal', 'hard', 'expert'];
   for (const d of diffs) {
     if (CACHE.get(d)?.length) continue;
     await loadPuzzleSet(d, onProgress);
   }
 }
 
-// 全局题目序号（需求2）：easy 从 1 起，normal 接 easy 之后，hard 接 normal 之后
+// 全局题目序号（需求2）：按 easy→normal→hard→expert 顺序累计偏移，跨难度连续
 //   新增题目时按难度顺序自动重算，更高难度的序号自动后移
 export function getGlobalNumber(diff: Difficulty, localIdx: number): number {
-  const order: Difficulty[] = ['easy', 'normal', 'hard'];
+  const order: Difficulty[] = ['easy', 'normal', 'hard', 'expert'];
   let offset = 0;
   for (const d of order) {
     if (d === diff) break;
@@ -144,5 +144,7 @@ export function formatPuzzleNo(n: number): string {
 }
 
 function diffLabel(diff: Difficulty): string {
-  return diff === 'easy' ? '简单' : diff === 'normal' ? '普通' : '困难';
+  return diff === 'easy' ? '简单'
+    : diff === 'normal' ? '普通'
+    : diff === 'hard' ? '困难' : '专家';
 }

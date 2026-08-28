@@ -2,16 +2,22 @@ import type { RenderLayer } from './types';
 import { cellRect } from '../view';
 
 // 笼标签层：仅显示有和值的笼的和值
-//   隐藏和值笼（sum=null，参与大小约束）不显示任何标签（需求3）
+//   隐藏和值笼（sum=null，参与大小/等值约束）不显示任何标签
+//   样式：白底黑字小标签，无描边（白底直接叠在浅色网格上已足够清晰）
+//   位置：白底块从笼左上格左上角内移 2px（仍盖住笼边框虚线、不盖宫/格实线边框），整齐统一
 export const cageLabels: RenderLayer = {
   name: 'cage-labels',
   draw(ctx, view, theme) {
     const { puzzle } = view;
-    const labelW = 22;
-    const labelH = 16;
-    ctx.font = 'bold 11px sans-serif';
+    ctx.font = 'bold 12px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
+
+    // 白底块尺寸：固定 18×14
+    const labelW = 18;
+    const labelH = 14;
+    // 内移 2px：遮住笼虚线边框，但不会覆盖宫/格边框（2px 留出边框线的位置）
+    const inset = 2;
 
     for (const cage of puzzle.cages) {
       // 隐藏和值笼不显示标签
@@ -25,13 +31,12 @@ export const cageLabels: RenderLayer = {
         }
       }
       const rect = cellRect(view, minIdx);
-      const lx = rect.x + 2;
-      const ly = rect.y + 2;
-      // 底色 + 和值文字
-      ctx.fillStyle = theme.cageLabelBg;
-      ctx.fillRect(lx, ly, labelW, labelH);
+      // 内移 2px：底框仍在笼边框虚线内侧，盖住笼虚线但不盖宫/格实线边框
+      ctx.fillStyle = theme.cageLabelBg; // 纯白底
+      ctx.fillRect(rect.x + inset, rect.y + inset, labelW, labelH);
+      // 黑字画在白底块中心
       ctx.fillStyle = theme.cageLabelFg;
-      ctx.fillText(`${cage.sum}`, lx + labelW / 2, ly + labelH / 2 + 0.5);
+      ctx.fillText(`${cage.sum}`, rect.x + inset + labelW / 2, rect.y + inset + labelH / 2 + 0.5);
     }
   },
 };

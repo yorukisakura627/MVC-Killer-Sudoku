@@ -54,7 +54,9 @@ async function main() {
   controlsRow.className = 'controls-row';
   gameArea.appendChild(controlsRow);
 
-  // 左：控制栏（计时+帮助 / 上一题·题目选择·下一题 / 难度）
+  // 左：控制栏（计时+题号+帮助 / 上一题·题目选择·下一题 / 难度）
+  //   提示/检查按钮由右侧 Numpad 统一提供（含红圈剩余次数徽标与规则校验逻辑），
+  //   左侧控制栏不再重复，避免功能冗余影响布局观感
   sidePanel = new SidePanel({
     onPrev: () => navigatePuzzle('prev'),
     onPick: () => showPuzzlePicker((d, i) => {
@@ -79,6 +81,8 @@ async function main() {
     cages: [],
     cellIneq: [],
     cageIneq: [],
+    cellEq: [],
+    cageEq: [],
     givens: new Map(),
     rating: 0,
     techniqueMax: '',
@@ -134,6 +138,12 @@ async function startNewGame(diff: Difficulty): Promise<void> {
 function startPuzzle(puzzle: Puzzle): void {
   if (store) store.stopTimer();
   store = new GameStore(puzzle);
+  // 开发模式挂全局调试钩子（浏览器 evaluate 测 store 行为用，生产无影响）
+  //   未声明 vite/client 类型，使用 any 断言绕过 ImportMeta 字段检查
+  const isDev = !!(import.meta as any).env?.DEV;
+  if (isDev) {
+    (window as any).__debug = { store };
+  }
   // 恢复存档
   const save = loadGame(puzzle.id);
   if (save && !save.completed) {
@@ -180,6 +190,7 @@ function startPuzzle(puzzle: Puzzle): void {
       canUndo: s.history.canUndo(),
       canReset: s.hasUserInput(),
       canHint: s.hintsRemaining > 0,
+      hintsRemaining: s.hintsRemaining,
       paused: s.paused,
     });
     // 暂停时显示遮挡层，恢复时隐藏
