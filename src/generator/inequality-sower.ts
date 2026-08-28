@@ -79,7 +79,23 @@ export function resolveConstraintOverlaps(
   cellEq: CellEquality[],
   cageEq: CageEquality[],
   rng: () => number = Math.random,
+  givens?: ReadonlySet<number>,
 ): ResolveOverlapResult {
+  // === 步骤 0：用户规则 2/3——双给定格间约束必删 ===
+  //   两个相邻格都给定值时格间大小约束无效（规则 2）；两个对角格都给定值时
+  //   格间等值约束无效（规则 3）。givens 传入时（挖空后的二次调用），
+  //   把双给定约束标记为必删；补回阶段跳过双给定候选，避免重新引入无效约束
+  const forceRemovedCellIneq = new Set<number>();
+  const forceRemovedCellEq = new Set<number>();
+  if (givens) {
+    cellIneq.forEach((ii, idx) => {
+      if (givens.has(ii.a) && givens.has(ii.b)) forceRemovedCellIneq.add(idx);
+    });
+    cellEq.forEach((eq, idx) => {
+      if (givens.has(eq.a) && givens.has(eq.b)) forceRemovedCellEq.add(idx);
+    });
+  }
+
   // === 步骤 1：构建符号池（每条符号：位置 + 类型索引 + 优先级）===
   type Sym = {
     mid: { r: number; c: number };
@@ -98,7 +114,10 @@ export function resolveConstraintOverlaps(
       idx: -1,
     });
   }
-  cellIneq.forEach((ii, idx) => syms.push({ mid: cellPairMidpoint(ii.a, ii.b), prio: PRIO_CELL_INEQ, cat: 'cellIneq', idx }));
+  cellIneq.forEach((ii, idx) => {
+    if (forceRemovedCellIneq.has(idx)) return; // 规则2：双给定必删，不进符号池
+    syms.push({ mid: cellPairMidpoint(ii.a, ii.b), prio: PRIO_CELL_INEQ, cat: 'cellIneq', idx });
+  });
   // cageIneq 位置通过 pickCageEndpoints
   const cageById = new Map(cages.map((c) => [c.id, c]));
   cageIneq.forEach((ci, idx) => {
@@ -119,7 +138,10 @@ export function resolveConstraintOverlaps(
     }
     syms.push({ mid, prio: PRIO_CAGE_INEQ, cat: 'cageIneq', idx });
   });
-  cellEq.forEach((eq, idx) => syms.push({ mid: cellPairMidpoint(eq.a, eq.b), prio: PRIO_CELL_EQ, cat: 'cellEq', idx }));
+  cellEq.forEach((eq, idx) => {
+    if (forceRemovedCellEq.has(idx)) return; // 规则3：双给定必删，不进符号池
+    syms.push({ mid: cellPairMidpoint(eq.a, eq.b), prio: PRIO_CELL_EQ, cat: 'cellEq', idx });
+  });
   cageEq.forEach((eq, idx) => {
     const ca = cageById.get(eq.a), cb = cageById.get(eq.b);
     if (!ca || !cb) return;
@@ -212,6 +234,8 @@ export function resolveConstraintOverlaps(
           if (usedPairs.has(key)) return;
           const va = sol[x], vb = sol[y];
           if (va === vb) return;
+          // 规则2：两格都给定值时大小约束无效，不补回
+          if (givens && givens.has(x) && givens.has(y)) return;
           const cand: CellInequality = { a: x, b: y, rel: va > vb ? '>' : '<' };
           const mid = cellPairMidpoint(x, y);
           // 防重叠：若与现保留符号冲突则继续下一个
@@ -332,6 +356,8 @@ export function resolveConstraintOverlaps(
         for (let j = i + 1; j < cells.length; j++) {
           const a = cells[i], b = cells[j];
           if (isPeer(a, b)) continue;
+          // 规则3：两格都给定值时等值约束无效，不补回
+          if (givens && givens.has(a) && givens.has(b)) continue;
           // 棋盘距离 ≤ 1：对角相邻才补回，横跨多格的不补（需求3）
           const dra = Math.abs(Math.floor(a / 9) - Math.floor(b / 9));
           const dca = Math.abs((a % 9) - (b % 9));

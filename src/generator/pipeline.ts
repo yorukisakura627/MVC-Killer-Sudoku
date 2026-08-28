@@ -22,9 +22,11 @@ export interface GenOptions {
 //   2. 铺笼子（部分 sum=null 作为隐藏笼）
 //   3. 撒大小约束
 //   4. 全格作为给定数 → 验证唯一解（应通过）
-//   5. 分阶段移除给定数到目标数（每步验证唯一解）
-//   6. 验证逻辑可解
-//   7. 检查技巧等级 + 评分区间
+//   5. 分阶段移除给定数到范围内随机目标（规则 1：有和值笼必留空格；
+//      规则 4：每行/列/宫至少一个空格）
+//   6. 规则 2/3 校验：挖空后删除双给定的格间大小/等值约束，并补撒替代约束
+//   7. 验证逻辑可解
+//   8. 检查技巧等级 + 评分区间
 //   失败重试，超时熔断
 export function generatePuzzle(opts: GenOptions): Puzzle | null {
   const { diff, rng = Math.random, maxTries = 20, timeoutMs = 30000, skipRatingBand = false } = opts;
@@ -98,10 +100,31 @@ export function generatePuzzle(opts: GenOptions): Puzzle | null {
     // 验证初始唯一性（应通过：全给定必然唯一）
     if (!hasUniqueSolution(p)) continue;
 
-    // 分阶段移除给定数
-    p = removeCluesToTarget(p, params.targetGivens, rng);
+    // 给定数目标：在难度范围内随机取值（用户规则 5），不再使用固定值
+    const targetGivens = randInt(params.givensRange, rng);
 
-    // 再次验证唯一解（应仍唯一，因移除时已逐个验证）
+    // 分阶段移除给定数（内含规则 1 牺牲格 + 规则 4 行列宫空格保证）：
+    //   返回 null 表示本题无法满足规则 1/4，换新题重试
+    const stripped = removeCluesToTarget(p, targetGivens, rng, params.givensRange[0]);
+    if (!stripped) continue;
+    p = stripped;
+
+    // 用户规则 2/3：挖空后二次校验约束有效性——
+    //   相邻两格都给定 → 格间大小约束无效（规则 2）；对角两格都给定 →
+    //   格间等值约束无效（规则 3）。二次调用 resolveConstraintOverlaps：
+    //   双给定约束必删，且从候选池补撒替代约束（跳过双给定对 + 常规避让），
+    //   origSizes 取传入数组长度 → 删多少补多少，约束总数守恒
+    const reResolved = resolveConstraintOverlaps(
+      cages, sol, p.cellIneq, p.cageIneq, p.cellEq, p.cageEq, rng,
+      new Set(p.givens.keys()), // Map 转只读键集合供规则 2/3 判定
+    );
+    p.cellIneq = reResolved.cellIneq;
+    p.cageIneq = reResolved.cageIneq;
+    p.cellEq = reResolved.cellEq;
+    p.cageEq = reResolved.cageEq;
+
+    // 删除约束可能扩大解集破坏唯一性（补回的新约束只会缩小解集），
+    //   必须重新验证；不唯一则本题作废换新题
     if (!hasUniqueSolution(p)) continue;
 
     // 验证逻辑可解（用对应难度档的技巧列表，避免使用更高难度技巧虚低评分）

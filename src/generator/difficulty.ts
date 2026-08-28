@@ -3,8 +3,7 @@ import type { SolveResult } from '@/solver/logical';
 
 // 难度参数：每档定义约束密度、隐藏笼比例、技巧上限与评分区间
 export interface DiffParams {
-  targetGivens: number; // 移除给定数到此数量停止（最小为目标）
-  minGivens: number; // 给定数下限保护（不可低于）
+  givensRange: [number, number]; // 给定数随机范围：生成时在区间内取目标值挖空
   cageHiddenRate: number; // 隐藏笼比例（sum=null）
   cellIneqRange: [number, number]; // 格间大小约束数量区间
   cageIneqRange: [number, number]; // 笼间大小约束数量区间
@@ -15,15 +14,15 @@ export interface DiffParams {
   ratingBand: [number, number]; // 难度评分区间
 }
 
-// 四档难度：普通 25 给定 / 困难 15 / 专家 6~10（用户需求 1/2）
-//   评分带：easy 0~200 / normal 200~400 / hard 400~600 / expert 600+
+// 四档难度：给定数从固定值改为范围（用户需求）：easy 33~38 / normal 23~28 /
+//   hard 15~20 / expert 6~10；评分带不变：easy 0~200 / normal 200~400 /
+//   hard 400~600 / expert 600+
 //   等值约束（需求5）：easy 无，normal 起少量引入，难度越高越多
 //   minLevel 门槛：防止低档技巧（或纯传播）解出的题混入高档
 //     —— 实测 normal 25 给定时多数可被纯传播解出（L0），不设门槛会大量低于 200 带
 export const DIFF_PARAMS: Record<Difficulty, DiffParams> = {
   easy: {
-    targetGivens: 35,
-    minGivens: 30,
+    givensRange: [33, 38],
     cageHiddenRate: 0.1, // 需至少部分隐藏笼才能撒笼间约束
     cellIneqRange: [0, 5],
     cageIneqRange: [1, 2],
@@ -34,8 +33,7 @@ export const DIFF_PARAMS: Record<Difficulty, DiffParams> = {
     ratingBand: [0, 200],
   },
   normal: {
-    targetGivens: 25,
-    minGivens: 22,
+    givensRange: [23, 28],
     cageHiddenRate: 0.35, // 提高隐藏比例：迫使解题需要 naked-single 等技巧（否则传播即解，评分塌到 easy 区）
     cellIneqRange: [5, 10],
     cageIneqRange: [1, 3],
@@ -46,8 +44,7 @@ export const DIFF_PARAMS: Record<Difficulty, DiffParams> = {
     ratingBand: [200, 400],
   },
   hard: {
-    targetGivens: 15,
-    minGivens: 12,
+    givensRange: [15, 20],
     cageHiddenRate: 0.4,
     cellIneqRange: [10, 15],
     cageIneqRange: [2, 4],
@@ -58,8 +55,7 @@ export const DIFF_PARAMS: Record<Difficulty, DiffParams> = {
     ratingBand: [400, 600],
   },
   expert: {
-    targetGivens: 8,
-    minGivens: 6,
+    givensRange: [6, 10],
     cageHiddenRate: 0.5,
     cellIneqRange: [12, 18],
     cageIneqRange: [3, 5],

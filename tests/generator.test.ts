@@ -25,7 +25,7 @@ describe('generatePuzzle', () => {
     const log = solveLogical(p, techniquesFor('easy'));
     expect(log.solved).toBe(true);
     expect(log.maxLevel).toBeLessThanOrEqual(DIFF_PARAMS.easy.maxAllowedLevel);
-    expect(p.givens.size).toBeGreaterThanOrEqual(DIFF_PARAMS.easy.minGivens);
+    expect(p.givens.size).toBeGreaterThanOrEqual(DIFF_PARAMS.easy.givensRange[0]);
     expect(p.cages.length).toBeGreaterThan(0);
   }, 60000);
 
@@ -43,7 +43,7 @@ describe('generatePuzzle', () => {
     }
     expect(p.difficulty).toBe('normal');
     expect(p.solution.length).toBe(81);
-    expect(p.givens.size).toBeGreaterThanOrEqual(DIFF_PARAMS.normal.minGivens);
+    expect(p.givens.size).toBeGreaterThanOrEqual(DIFF_PARAMS.normal.givensRange[0]);
     // 需求3：不应存在"可见单格笼"（单格笼和值等价给定数，属冗余约束）
     expect(p.cages.some((c) => c.cells.length === 1 && c.sum !== null)).toBe(false);
     expect(hasUniqueSolution(p)).toBe(true);
@@ -59,7 +59,7 @@ describe('generatePuzzle', () => {
         timeoutMs: 60000,
       });
       if (!p) continue;
-      expect(p.givens.size).toBeGreaterThanOrEqual(DIFF_PARAMS[diff].minGivens);
+      expect(p.givens.size).toBeGreaterThanOrEqual(DIFF_PARAMS[diff].givensRange[0]);
     }
   }, 120000);
 });
