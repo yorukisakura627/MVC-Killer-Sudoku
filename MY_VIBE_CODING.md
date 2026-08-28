@@ -523,3 +523,39 @@ normal 首轮差 1 题，`--append --maxTries=80` 补 1 题至 20；其余一次
 ### 说明
 - 规则 1/4 的修复挖空会导致给定数比目标少 1\~2 格，为避免越出范围下限，实现选择了"低于下限即换新题"的严格策略——实际触发率极低，不影响生成效率。
 - 规则 2/3 的补撒依赖 `resolveConstraintOverlaps` 既有防重叠/避让逻辑，新补的约束自动满足符号间距、跨度限制等其他规则。
+
+---
+
+## 阶段 16：README 补充"为什么是 Vibe 杀手数独"（0.3.1）
+
+### 用户要求
+在 README 特性章节前新增"为什么是Vibe杀手数独？"小节，说明项目选型理由（AI 算法优势 / 技术栈简单 / 多端适配 / 个人兴趣），保持排版格式一致。
+
+### 实现
+- 更新了 README.md：在"在线体验"与"特性"之间插入四条理由列表，格式与现有列表项一致。
+- 版本号 0.3.1（纯文档更新，Patch 递增）。
+- 注：该小节随 PR 合并进入 main（用户在远端手动提交 7c433e8），此处补记 MY_VIBE_CODING。
+
+---
+
+## 阶段 17：修复了 Netlify 构建失败（1.0.1）
+
+### 用户反馈
+分支合并到 main 后 Netlify 构建报错：`scripts/audit-puzzles.ts(53,31): error TS2339: Property 'id' does not exist on type 'CageJson'`。要求检查并修复该错误及其他潜在构建错误。
+
+### 原因分析
+- [puzzle.ts](src/types/puzzle.ts) 的 `CageJson` 是题库 JSON 的纯数据形态，只有 `cells`/`sum` 两个字段；`id` 是运行时 `puzzleFromJson` 按数组下标补充的（`Cage.id`）。
+- [audit-puzzles.ts](scripts/audit-puzzles.ts) 第 53 行误访问了 `cage.id`。
+- 本地未发现的原因：平时用 `npx tsx` 直接运行脚本（tsx 不做类型检查）；而 Netlify 构建执行 `tsc --noEmit && vite build`，全量类型检查暴露了该错误。
+
+### 修复内容
+- 修复了 audit-puzzles.ts 的规则 1 检查：用 `p.cages.forEach((cage, ci) => ...)` 的数组下标 `ci` 标识笼，替代不存在的 `cage.id`，与运行时补 id 的逻辑保持一致。
+
+### 验证
+- 增加了完整构建验证：本地跑 `npm run build`（与 Netlify 一致），`tsc --noEmit` + `vite build` 全部通过，确认无其他类型错误。
+- 更新了审计脚本运行验证：四档 60 题仍 0 违规。
+
+### 说明
+- 增加了教训：脚本类代码（scripts/）也要纳入 `npm run build` 的本地验证流程，避免 tsx 直跑掩盖类型错误。
+- 版本号 1.0.1：1.0.0 正式版（指向 PR 合并点）已发布，此后 bug 修复按 Patch 递增；曾误打 0.3.2 tag，已删除改打 1.0.1。
+- 本次起 commit message 采用"修复了/修改了/增加了/更新了/删除了"风格（用户要求）。

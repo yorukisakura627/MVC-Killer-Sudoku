@@ -47,12 +47,13 @@ function auditPuzzle(p: PuzzleJson): {
   const rule4: string[] = [];
 
   // 规则 1：有和值笼全给定
-  for (const cage of p.cages) {
-    if (cage.sum === null) continue;
+  //   CageJson 无 id 字段（运行时 puzzleFromJson 按数组下标补 id），故用下标标识笼
+  p.cages.forEach((cage, ci) => {
+    if (cage.sum === null) return;
     if (cage.cells.every((i) => givens.has(i))) {
-      rule1.push(`cage#${cage.id}(cells:${cage.cells.join(',')})`);
+      rule1.push(`cage#${ci}(cells:${cage.cells.join(',')})`);
     }
-  }
+  });
 
   // 规则 2：双给定的格间大小约束
   for (const ii of p.cellIneq ?? []) {
